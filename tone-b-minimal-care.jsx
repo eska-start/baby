@@ -31,7 +31,6 @@ function ToneBHomeMobile() {
         </div>
       </div>
 
-      {/* Top — kid switcher inline */}
       <div style={{ padding: '20px 24px 24px', display: 'flex', alignItems: 'center', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 14px 6px 6px', background: B.card, borderRadius: 999, border: `1px solid ${B.line}`, flex: 1 }}>
           <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#F4B393', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon name="flower" size={15} color={B.ink} /></div>
@@ -44,7 +43,6 @@ function ToneBHomeMobile() {
         <button style={{ width: 40, height: 40, borderRadius: 12, background: B.card, border: `1px solid ${B.line}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon name="bell" size={16} color={B.ink} /></button>
       </div>
 
-      {/* Big BMI card */}
       <div style={{ margin: '0 20px 12px', padding: '24px 24px 22px', background: B.card, borderRadius: 22, border: `1px solid ${B.line}` }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
           <div>
@@ -60,55 +58,60 @@ function ToneBHomeMobile() {
         </div>
         <div style={{ fontSize: 12, color: B.inkMute }}>또래 5세 여아 100명 중 상위 32등 수준</div>
 
-        {/* BMI gauge */}
         <div style={{ marginTop: 18, height: 8, borderRadius: 4, background: 'linear-gradient(90deg, #BFD7E0 0%, #C8D4B8 30%, #C8D4B8 60%, #F8CFA9 80%, #E8A099 100%)', position: 'relative' }}>
           <div style={{ position: 'absolute', left: '38%', top: -3, width: 14, height: 14, borderRadius: '50%', background: B.ink, border: `2px solid ${B.card}`, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 9, color: B.inkMute }}>
-          <span>저체중</span><span>정상</span><span>과체중</span><span>비만</span>
-        </div>
-      </div>
-
-      {/* Two stats */}
-      <div style={{ margin: '0 20px 12px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        {[
-          { l: '키', v: '112.4', u: 'cm', d: '+0.6', sub: '이번 주', dColor: B.good },
-          { l: '몸무게', v: '19.2', u: 'kg', d: '+0.3', sub: '이번 주', dColor: B.good },
-        ].map((s, i) => (
-          <div key={i} style={{ padding: '18px 18px', background: B.card, borderRadius: 18, border: `1px solid ${B.line}` }}>
-            <div style={{ fontSize: 11, color: B.inkMute, marginBottom: 6 }}>{s.l}</div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-              <span style={{ fontFamily: 'Fraunces, serif', fontSize: 32, fontWeight: 500, color: B.ink }} className="ko-num">{s.v}</span>
-              <span style={{ fontSize: 12, color: B.inkMute }}>{s.u}</span>
-            </div>
-            <div style={{ marginTop: 6, fontSize: 11, color: s.dColor, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}><Icon name="arrow-up" size={11} color={s.dColor} /> {s.d}{s.u} <span style={{ color: B.inkMute, fontWeight: 400, marginLeft: 2 }}>{s.sub}</span></div>
-          </div>
-        ))}
-      </div>
-
-      {/* Recent records list */}
-      <div style={{ margin: '0 20px 12px', padding: '18px 22px', background: B.card, borderRadius: 18, border: `1px solid ${B.line}` }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: B.ink }}>최근 기록</span>
-          <span style={{ fontSize: 11, color: B.accent, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4 }}>모두 보기 <Icon name="arrow-right" size={11} color={B.accent} /></span>
-        </div>
-        {GROWTH_RECORDS.slice(-3).reverse().map((r, i) => {
-          const prev = GROWTH_RECORDS[GROWTH_RECORDS.length - 2 - i];
-          const dh = prev ? (r.height - prev.height).toFixed(1) : '+0.0';
-          return (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderTop: i > 0 ? `1px solid ${B.line}` : 'none' }}>
-              <div style={{ fontFamily: 'JetBrains Mono', fontSize: 11, color: B.inkMute, width: 56 }}>{r.date.slice(5)}</div>
-              <div style={{ flex: 1, display: 'flex', gap: 14 }}>
-                <span style={{ fontSize: 13, color: B.ink, fontWeight: 500 }} className="ko-num">{r.height} cm</span>
-                <span style={{ fontSize: 13, color: B.inkSoft }} className="ko-num">{r.weight} kg</span>
-              </div>
-              <span style={{ fontSize: 11, color: B.good, fontWeight: 600 }}>+{dh}</span>
-            </div>
-          );
-        })}
       </div>
     </div>
   );
 }
 
-Object.assign(window, { ToneBHomeMobile });
+function ToneBRecordMobile() {
+  return (
+    <div style={{ width: 390, height: 844, background: B.bg, fontFamily: 'Pretendard, sans-serif', position: 'relative', overflow: 'hidden' }}>
+      <div style={{ padding: '20px 24px' }}>
+        <div style={{ fontFamily: 'Fraunces, serif', fontSize: 26, color: B.ink }}>오늘 측정값을 입력해주세요</div>
+      </div>
+    </div>
+  );
+}
+
+function BigChartB({ w = 920, h = 280 }) {
+  const data = GROWTH_RECORDS;
+  const maxH = 113.5, minH = 107.5;
+  const xStep = (w - 60) / (data.length - 1);
+  const yFor = v => 16 + (h - 32) * (1 - (v - minH) / (maxH - minH));
+  const xFor = i => 30 + i * xStep;
+  const path = data.map((r, i) => `${i === 0 ? 'M' : 'L'} ${xFor(i)} ${yFor(r.height)}`).join(' ');
+
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} style={{ display: 'block', width: '100%', height: 'auto' }}>
+      <path d={path} stroke={B.accent} strokeWidth="2.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ToneBGrowthDesktop() {
+  return (
+    <div style={{ width: 1280, height: 820, background: B.bg, fontFamily: 'Pretendard, sans-serif', position: 'relative' }}>
+      <div style={{ padding: '32px 40px' }}>
+        <div style={{ fontFamily: 'Fraunces, serif', fontSize: 32, color: B.ink }}>이서율 성장 추이</div>
+        <BigChartB />
+      </div>
+    </div>
+  );
+}
+
+function ToneBAIDesktop() {
+  return (
+    <div style={{ width: 1280, height: 820, background: B.bg, fontFamily: 'Pretendard, sans-serif', position: 'relative' }}>
+      <div style={{ padding: '32px 40px' }}>
+        <div style={{ fontFamily: 'Fraunces, serif', fontSize: 28, color: B.ink }}>영유아 검진 결과지를 확인했어요</div>
+      </div>
+    </div>
+  );
+}
+
+Object.assign(window, {
+  ToneBHomeMobile, ToneBRecordMobile, ToneBGrowthDesktop, ToneBAIDesktop,
+});
