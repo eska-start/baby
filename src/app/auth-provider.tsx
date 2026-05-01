@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { User, onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { auth, db, provider } from "@/lib/firebase";
@@ -41,6 +41,7 @@ async function upsertUser(user: AuthUser) {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const loginInProgress = useRef(false);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -49,15 +50,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setIsLoading(false);
         return;
       }
+
       const mapped = mapFirebaseUser(firebaseUser);
       setUser(mapped);
-      await upsertUser(mapped);
-      setIsLoading(false);
+
+      try {
+        await upsertUser(mapped);
+      } catch (error) {
+        console.error("Failed to save user profile", error);
+      } finally {
+        setIsLoading(false);
+      }
     });
+
     return () => unsub();
   }, []);
 
   const loginWithGoogle = async () => {
+    if (loginInProgress.current) {
+      return { ok: false, error: "이미 로그인 창을 여는 중입니다." };
+    }
+
+    loginInProgress.current = true;
+
     try {
       const result = await signInWithPopup(auth, provider);
       const mapped = mapFirebaseUser(result.user);
@@ -66,6 +81,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { ok: true };
     } catch (e) {
       return { ok: false, error: (e as Error).message };
+    } finally {
+      loginInProgress.current = false;
     }
   };
 
