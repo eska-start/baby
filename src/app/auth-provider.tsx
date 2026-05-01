@@ -3,9 +3,8 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import {
   User,
-  getRedirectResult,
   onAuthStateChanged,
-  signInWithRedirect,
+  signInWithPopup,
   signOut,
 } from "firebase/auth";
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
@@ -51,26 +50,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let ignore = false;
 
-    const finishLoading = () => {
-      if (!ignore) setIsLoading(false);
-    };
-
-    void getRedirectResult(auth)
-      .then(async (result) => {
-        if (!result?.user) return;
-        const mapped = mapFirebaseUser(result.user);
-        await upsertUser(mapped);
-        if (!ignore) setUser(mapped);
-      })
-      .catch((error) => {
-        console.error("Google redirect login failed", error);
-      })
-      .finally(finishLoading);
-
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!firebaseUser) {
-        if (!ignore) setUser(null);
-        finishLoading();
+        if (!ignore) {
+          setUser(null);
+          setIsLoading(false);
+        }
         return;
       }
 
@@ -82,7 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (error) {
         console.error("Failed to save user profile", error);
       } finally {
-        finishLoading();
+        if (!ignore) setIsLoading(false);
       }
     });
 
@@ -94,7 +79,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loginWithGoogle = async () => {
     try {
-      await signInWithRedirect(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      const mapped = mapFirebaseUser(result.user);
+      await upsertUser(mapped);
+      setUser(mapped);
       return { ok: true };
     } catch (e) {
       return { ok: false, error: (e as Error).message };
