@@ -1,17 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { BottomNav, MobileTopBar, PageWrap, TopBar } from "@/components/AppShell";
 import { Icon } from "@/components/Icon";
 import { bmi, bmiCategory, diff, formatDate } from "@/lib/data";
 import { useRecords } from "@/app/providers";
 
-export default function RecordPage() {
+function RecordForm() {
   const { records, addRecord, activeChild } = useRecords();
   const router = useRouter();
   const last = records[records.length - 1];
+
+  const params = useSearchParams();
 
   const todayStr = useMemo(() => {
     const d = new Date();
@@ -19,7 +21,7 @@ export default function RecordPage() {
     return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
   }, []);
 
-  const [date, setDate] = useState(todayStr);
+  const [date, setDate] = useState(() => params.get("date") ?? todayStr);
   const [height, setHeight] = useState(last ? last.height.toFixed(1) : "");
   const [weight, setWeight] = useState(last ? last.weight.toFixed(1) : "");
   const [note, setNote] = useState("");
@@ -180,6 +182,14 @@ export default function RecordPage() {
       </PageWrap>
       <BottomNav />
     </>
+  );
+}
+
+export default function RecordPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-bg"><div className="h-8 w-8 animate-spin rounded-full border-4 border-line border-t-accent" /></div>}>
+      <RecordForm />
+    </Suspense>
   );
 }
 

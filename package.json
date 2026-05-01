@@ -9,10 +9,11 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.92.0",
+    "firebase": "^11.0.2",
     "next": "14.2.15",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "firebase": "^11.0.2"
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@types/node": "^20",

@@ -105,6 +105,20 @@ export default function SettingsPage() {
     setTimeout(() => setToast(null), 2500);
   };
 
+  const shareChild = () => {
+    if (!activeChild) return;
+    const data = {
+      name: activeChild.name,
+      birth: activeChild.birth,
+      gender: activeChild.gender,
+      records,
+      sharedAt: new Date().toISOString(),
+    };
+    const encoded = btoa(encodeURIComponent(JSON.stringify(data)));
+    const url = `${window.location.origin}/share?d=${encoded}`;
+    navigator.clipboard.writeText(url).then(() => showToast("공유 링크가 복사됐어요!"));
+  };
+
   const titleMap = { list: "아이 관리", edit: "아이 정보 수정", add: "새 아이 추가" };
 
   return (
@@ -205,11 +219,21 @@ export default function SettingsPage() {
 
             <div className="rounded-[18px] border border-line bg-card px-5 py-4">
               <div className="text-[11px] tracking-[0.5px] text-ink-mute mb-2">현재 활성 아이 기록</div>
-              <div className="flex gap-6">
-                <div>
-                  <div className="ko-num font-serif text-[24px] font-medium text-ink">{records.length}</div>
-                  <div className="text-[11px] text-ink-mute">성장 기록</div>
+              <div className="flex items-center justify-between">
+                <div className="flex gap-6">
+                  <div>
+                    <div className="ko-num font-serif text-[24px] font-medium text-ink">{records.length}</div>
+                    <div className="text-[11px] text-ink-mute">성장 기록</div>
+                  </div>
                 </div>
+                {activeChild && records.length > 0 && (
+                  <button
+                    onClick={shareChild}
+                    className="inline-flex items-center gap-1.5 rounded-[12px] border border-line bg-bg px-4 py-2.5 text-[12px] font-semibold text-ink transition hover:bg-card"
+                  >
+                    <Icon name="arrow-right" size={13} color="#1F1A14" /> 공유 링크 복사
+                  </button>
+                )}
               </div>
             </div>
           </div>

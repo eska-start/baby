@@ -1,23 +1,76 @@
+"use client";
+
+import Link from "next/link";
 import { BottomNav, MobileTopBar, PageWrap, TopBar } from "@/components/AppShell";
 import { Icon } from "@/components/Icon";
-import { CHECKUPS, VACCINES, formatDate } from "@/lib/data";
-
-const TODAY = new Date(2026, 3, 30); // 2026-04-30
+import { useRecords } from "@/app/providers";
+import { Vaccine, formatDate } from "@/lib/data";
 
 function daysUntil(dateStr: string) {
   const [y, m, d] = dateStr.split("-").map(Number);
   const target = new Date(y, m - 1, d);
-  const ms = target.getTime() - TODAY.getTime();
-  return Math.round(ms / (1000 * 60 * 60 * 24));
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  return Math.round((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function getCheckups(birth: string) {
+  const b = new Date(birth);
+  const addMonths = (n: number) => {
+    const d = new Date(b);
+    d.setMonth(d.getMonth() + n);
+    const p = (x: number) => String(x).padStart(2, "0");
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  };
+  const today = new Date().toISOString().slice(0, 10);
+  return [
+    { title: "영유아 검진 1차", detail: "0-1개월", start: addMonths(0), end: addMonths(1) },
+    { title: "영유아 검진 2차", detail: "4-6개월", start: addMonths(4), end: addMonths(6) },
+    { title: "영유아 검진 3차", detail: "9-12개월", start: addMonths(9), end: addMonths(12) },
+    { title: "영유아 검진 4차", detail: "18-24개월", start: addMonths(18), end: addMonths(24) },
+    { title: "영유아 검진 5차", detail: "42-48개월", start: addMonths(42), end: addMonths(48) },
+    { title: "영유아 검진 6차", detail: "54-60개월", start: addMonths(54), end: addMonths(60) },
+    { title: "영유아 검진 7차", detail: "66-71개월", start: addMonths(66), end: addMonths(71) },
+  ].map((c) => ({
+    ...c,
+    status: (c.end < today ? "done" : "upcoming") as "done" | "upcoming",
+  }));
 }
 
 export default function SchedulePage() {
-  const upcomingVaccines = VACCINES.filter((v) => v.status !== "done").sort((a, b) =>
-    a.dueDate.localeCompare(b.dueDate)
-  );
-  const doneVaccines = VACCINES.filter((v) => v.status === "done").sort((a, b) =>
-    b.dueDate.localeCompare(a.dueDate)
-  );
+  const { vaccines, completeVaccine, postponeVaccine, activeChild } = useRecords();
+
+  const upcomingVaccines = vaccines
+    .filter((v) => v.status !== "done")
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  const doneVaccines = vaccines
+    .filter((v) => v.status === "done")
+    .sort((a, b) => b.dueDate.localeCompare(a.dueDate));
+
+  const checkups = activeChild ? getCheckups(activeChild.birth) : [];
+  const upcomingCheckups = checkups.filter((c) => c.status === "upcoming");
+  const doneCheckups = checkups.filter((c) => c.status === "done");
+
+  const nextVaccine = upcomingVaccines[0];
+  const nextCheckup = upcomingCheckups[0];
+
+  if (!activeChild) {
+    return (
+      <>
+        <TopBar />
+        <MobileTopBar back title="일정" />
+        <PageWrap>
+          <div className="flex flex-col items-center justify-center py-24 text-center">
+            <p className="text-[14px] text-ink-mute">아이를 먼저 추가해주세요</p>
+            <Link href="/settings" className="mt-4 rounded-[12px] bg-ink px-5 py-3 text-[13px] font-semibold text-white">
+              아이 추가하기
+            </Link>
+          </div>
+        </PageWrap>
+        <BottomNav />
+      </>
+    );
+  }
 
   return (
     <>
@@ -28,45 +81,49 @@ export default function SchedulePage() {
           <div>
             <div className="mb-1 text-[11px] tracking-[0.5px] text-ink-mute">SCHEDULE</div>
             <h1 className="font-serif text-[32px] font-medium text-ink">검진 · 예방접종 일정</h1>
-            <p className="mt-1 text-[13px] text-ink-mute">
-              놓치지 않도록 다가오는 일정을 한 번에 모았어요.
-            </p>
+            <p className="mt-1 text-[13px] text-ink-mute">놓치지 않도록 다가오는 일정을 모았어요.</p>
           </div>
-          <button className="inline-flex items-center gap-2 rounded-[12px] border border-line bg-card px-4 py-3 text-[13px] font-medium text-ink-soft">
-            <Icon name="upload" size={14} /> 캘린더 내보내기
-          </button>
         </div>
-
         <div className="md:hidden px-2 pt-2">
           <div className="mb-1 text-[11px] tracking-[0.5px] text-ink-mute">SCHEDULE</div>
           <h1 className="font-serif text-[24px] font-medium text-ink">검진 · 접종 일정</h1>
         </div>
 
-        {/* Highlight */}
-        <section className="mt-4 rounded-[20px] bg-ink p-5 text-white md:mt-6 md:p-7">
-          <div className="text-[11px] tracking-[0.5px] text-white/60">NEXT UP</div>
-          <div className="mt-1.5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <div className="font-serif text-[24px] font-medium md:text-[28px]">
-                {upcomingVaccines[0].name} {upcomingVaccines[0].round}
+        {/* Next up highlight */}
+        {(nextVaccine || nextCheckup) && (
+          <section className="mt-4 rounded-[20px] bg-ink p-5 text-white md:mt-6 md:p-7">
+            <div className="text-[11px] tracking-[0.5px] text-white/60">NEXT UP</div>
+            {nextVaccine && (
+              <div className="mt-1.5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <div className="font-serif text-[22px] font-medium md:text-[26px]">
+                    {nextVaccine.name} {nextVaccine.round}
+                  </div>
+                  <div className="mt-1 text-[12px] text-white/60">
+                    {formatDate(nextVaccine.dueDate)} · D-{daysUntil(nextVaccine.dueDate)}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => postponeVaccine(nextVaccine.name, nextVaccine.round, 7)}
+                    className="rounded-[10px] border border-white/15 bg-white/5 px-4 py-2.5 text-[12px] font-medium text-white/90"
+                  >
+                    1주 미루기
+                  </button>
+                  <button
+                    onClick={() => completeVaccine(nextVaccine.name, nextVaccine.round)}
+                    className="inline-flex items-center gap-1.5 rounded-[10px] bg-accent px-4 py-2.5 text-[12px] font-semibold text-white"
+                  >
+                    완료 처리 <Icon name="check" size={13} color="#fff" strokeWidth={2.4} />
+                  </button>
+                </div>
               </div>
-              <div className="mt-1 text-[12px] text-white/60">
-                {formatDate(upcomingVaccines[0].dueDate)} · D-{daysUntil(upcomingVaccines[0].dueDate)}
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <button className="rounded-[10px] border border-white/15 bg-white/5 px-4 py-2.5 text-[12px] font-medium text-white/90">
-                일정 미루기
-              </button>
-              <button className="inline-flex items-center gap-1.5 rounded-[10px] bg-accent px-4 py-2.5 text-[12px] font-semibold text-white">
-                완료 처리 <Icon name="check" size={13} color="#fff" strokeWidth={2.4} />
-              </button>
-            </div>
-          </div>
-        </section>
+            )}
+          </section>
+        )}
 
-        {/* Two columns: vaccines & checkups */}
         <section className="mt-4 grid gap-4 md:mt-6 md:grid-cols-2">
+          {/* Vaccines */}
           <div className="rounded-[18px] border border-line bg-card p-5 md:p-6">
             <div className="mb-4 flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -75,83 +132,107 @@ export default function SchedulePage() {
                 </div>
                 <span className="text-[13px] font-semibold text-ink">예방접종</span>
               </div>
-              <span className="text-[11px] text-ink-mute">총 {VACCINES.length}건</span>
+              <span className="text-[11px] text-ink-mute">총 {vaccines.length}건</span>
             </div>
 
-            <div className="mb-2 text-[11px] tracking-[0.5px] text-ink-mute">예정</div>
-            <div className="space-y-2">
-              {upcomingVaccines.map((v) => (
-                <ScheduleRow
-                  key={v.name + v.dueDate}
-                  title={`${v.name}${v.round ? ` · ${v.round}` : ""}`}
-                  date={formatDate(v.dueDate)}
-                  badge={`D-${daysUntil(v.dueDate)}`}
-                  tone="accent"
-                />
-              ))}
-            </div>
+            {upcomingVaccines.length > 0 && (
+              <>
+                <div className="mb-2 text-[11px] tracking-[0.5px] text-ink-mute">예정</div>
+                <div className="space-y-2 mb-4">
+                  {upcomingVaccines.map((v) => (
+                    <VaccineRow
+                      key={v.name + v.dueDate}
+                      vaccine={v}
+                      onComplete={() => completeVaccine(v.name, v.round)}
+                      onPostpone={() => postponeVaccine(v.name, v.round, 7)}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
 
-            <div className="mb-2 mt-5 text-[11px] tracking-[0.5px] text-ink-mute">완료</div>
-            <div className="space-y-2">
-              {doneVaccines.map((v) => (
-                <ScheduleRow
-                  key={v.name + v.dueDate}
-                  title={`${v.name}${v.round ? ` · ${v.round}` : ""}`}
-                  date={formatDate(v.dueDate)}
-                  badge="완료"
-                  tone="good"
-                  muted
-                />
-              ))}
-            </div>
+            {doneVaccines.length > 0 && (
+              <>
+                <div className="mb-2 text-[11px] tracking-[0.5px] text-ink-mute">완료</div>
+                <div className="space-y-2">
+                  {doneVaccines.map((v) => (
+                    <div key={v.name + v.dueDate} className="flex items-center justify-between rounded-[12px] border border-line bg-bg/60 px-4 py-3">
+                      <div>
+                        <div className="text-[13px] font-medium text-ink-soft">{v.name}{v.round ? ` · ${v.round}` : ""}</div>
+                        <div className="ko-num mt-0.5 text-[11px] text-ink-mute">{formatDate(v.dueDate)}</div>
+                      </div>
+                      <span className="rounded-full bg-good-soft px-2 py-0.5 text-[10px] font-semibold text-good">완료</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {vaccines.length === 0 && (
+              <div className="py-8 text-center text-[13px] text-ink-mute">
+                예방접종 정보가 없어요.<br />AI 분석에서 접종 기록을 추가해보세요.
+              </div>
+            )}
           </div>
 
+          {/* Checkups */}
           <div className="rounded-[18px] border border-line bg-card p-5 md:p-6">
             <div className="mb-4 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="flex h-7 w-7 items-center justify-center rounded-[8px] bg-good-soft">
                   <Icon name="heart" size={14} color="#5C7A5C" />
                 </div>
-                <span className="text-[13px] font-semibold text-ink">건강 · 영유아 검진</span>
+                <span className="text-[13px] font-semibold text-ink">영유아 건강검진</span>
               </div>
-              <span className="text-[11px] text-ink-mute">총 {CHECKUPS.length}건</span>
             </div>
 
-            <div className="space-y-2.5">
-              {CHECKUPS.map((c) => (
-                <div
-                  key={c.title}
-                  className={`rounded-[14px] border border-line px-4 py-3.5 ${
-                    c.status === "done" ? "bg-bg/60" : "bg-card"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-[13px] font-semibold text-ink">{c.title}</span>
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                        c.status === "done" ? "bg-good-soft text-good" : "bg-warn-soft text-warn"
-                      }`}
-                    >
-                      {c.status === "done" ? "완료" : "예정"}
-                    </span>
-                  </div>
-                  <div className="ko-num mt-1 text-[12px] text-ink-mute">
-                    {formatDate(c.windowStart)} ~ {formatDate(c.windowEnd)}
-                  </div>
-                  {c.detail && <div className="mt-1.5 text-[11px] text-ink-soft">{c.detail}</div>}
+            {upcomingCheckups.length > 0 && (
+              <>
+                <div className="mb-2 text-[11px] tracking-[0.5px] text-ink-mute">예정</div>
+                <div className="space-y-2 mb-4">
+                  {upcomingCheckups.map((c) => (
+                    <div key={c.title} className="rounded-[12px] border border-line bg-card px-4 py-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-[13px] font-semibold text-ink">{c.title}</span>
+                          <div className="ko-num mt-0.5 text-[11px] text-ink-mute">
+                            {formatDate(c.start)} ~ {formatDate(c.end)}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="rounded-full bg-warn-soft px-2 py-0.5 text-[10px] font-semibold text-warn">예정</span>
+                          <Link
+                            href={`/record?date=${c.start}`}
+                            className="rounded-[8px] bg-ink px-2.5 py-1.5 text-[10px] font-semibold text-white"
+                          >
+                            기록 추가
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </>
+            )}
 
-            <div className="mt-5 rounded-[14px] bg-warn-soft p-4">
-              <div className="flex items-center gap-2 text-[12px] font-semibold text-ink">
-                <Icon name="sparkle" size={13} color="#C49B3A" /> 자동 알림
-              </div>
-              <div className="mt-1 text-[11px] leading-[1.55] text-ink-soft">
-                일정 7일 전, 1일 전에 푸시 알림으로 알려드려요. 알림을 끄고 싶다면 설정에서 변경할
-                수 있어요.
-              </div>
-            </div>
+            {doneCheckups.length > 0 && (
+              <>
+                <div className="mb-2 text-[11px] tracking-[0.5px] text-ink-mute">완료 (기간 경과)</div>
+                <div className="space-y-2">
+                  {doneCheckups.map((c) => (
+                    <div key={c.title} className="rounded-[12px] border border-line bg-bg/60 px-4 py-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-[13px] font-medium text-ink-soft">{c.title}</span>
+                          <div className="ko-num mt-0.5 text-[11px] text-ink-mute">{c.detail}</div>
+                        </div>
+                        <span className="rounded-full bg-good-soft px-2 py-0.5 text-[10px] font-semibold text-good">완료</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </section>
       </PageWrap>
@@ -160,37 +241,20 @@ export default function SchedulePage() {
   );
 }
 
-function ScheduleRow({
-  title,
-  date,
-  badge,
-  tone,
-  muted,
-}: {
-  title: string;
-  date: string;
-  badge: string;
-  tone: "accent" | "good";
-  muted?: boolean;
-}) {
-  const color = tone === "accent" ? "#D77B50" : "#5C7A5C";
-  const bg = tone === "accent" ? "#FCE5D2" : "#E5EFE3";
+function VaccineRow({ vaccine, onComplete, onPostpone }: { vaccine: Vaccine; onComplete: () => void; onPostpone: () => void }) {
+  const days = daysUntil(vaccine.dueDate);
   return (
-    <div
-      className={`flex items-center justify-between rounded-[12px] border border-line px-4 py-3 ${
-        muted ? "bg-bg/60" : "bg-card"
-      }`}
-    >
-      <div>
-        <div className={`text-[13px] font-medium ${muted ? "text-ink-soft" : "text-ink"}`}>{title}</div>
-        <div className="ko-num mt-0.5 text-[11px] text-ink-mute">{date}</div>
+    <div className="rounded-[12px] border border-line bg-card px-4 py-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="text-[13px] font-medium text-ink">{vaccine.name}{vaccine.round ? ` · ${vaccine.round}` : ""}</div>
+          <div className="ko-num mt-0.5 text-[11px] text-ink-mute">{formatDate(vaccine.dueDate)} · D-{days}</div>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <button onClick={onPostpone} className="rounded-[6px] border border-line bg-bg px-2 py-1 text-[10px] text-ink-mute">1주 미루기</button>
+          <button onClick={onComplete} className="rounded-[6px] bg-good px-2 py-1 text-[10px] font-semibold text-white">완료</button>
+        </div>
       </div>
-      <span
-        className="ko-num rounded-full px-2 py-0.5 text-[10px] font-semibold"
-        style={{ color, background: bg }}
-      >
-        {badge}
-      </span>
     </div>
   );
 }
