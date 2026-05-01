@@ -4,27 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/auth-provider";
-
-function AikiBrandMark() {
-  return (
-    <div className="mx-auto mb-4 flex flex-col items-center">
-      <div className="relative flex h-[118px] w-[118px] items-center justify-center rounded-full bg-[#F7F3E9] shadow-[0_18px_38px_rgba(138,124,102,0.16)]">
-        <div className="absolute inset-4 rounded-full bg-[#FDFBF6]" />
-        <svg viewBox="0 0 120 120" className="relative h-[96px] w-[96px]" aria-hidden="true">
-          <path d="M62 100C42 84 30 65 29 42" fill="none" stroke="#8AA56F" strokeWidth="9" strokeLinecap="round" />
-          <path d="M61 99C76 80 83 59 78 36" fill="none" stroke="#8AA56F" strokeWidth="9" strokeLinecap="round" />
-          <path d="M55 54C39 39 29 27 22 14C39 17 52 28 61 43" fill="#B9C68D" />
-          <path d="M67 50C79 31 94 20 110 17C103 34 89 47 70 57" fill="#A6B87A" />
-          <path d="M58 66C47 56 37 51 25 50C31 64 43 72 58 72" fill="#D8CFA7" />
-        </svg>
-      </div>
-      <div className="mt-5 text-center">
-        <div className="font-serif text-[54px] font-semibold leading-none tracking-[-0.04em] text-[#A7A883]">아이키</div>
-        <p className="mt-3 text-[15px] font-medium text-[#9A8F83]">데이터로 확인하는 우리 아이의 성장</p>
-      </div>
-    </div>
-  );
-}
+import { AikiLogo } from "@/components/AikiLogo";
 
 function MailIcon() {
   return (
@@ -94,55 +74,29 @@ export default function LoginPage() {
       <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-[38%] rounded-t-[48%] bg-[#ECE7DC]" />
 
       <div className="relative w-full max-w-[390px] rounded-[34px] border border-white/70 bg-[#FBF8F1]/90 px-7 pb-7 pt-8 shadow-[0_26px_70px_rgba(103,88,70,0.18)] backdrop-blur">
-        <AikiBrandMark />
+        <AikiLogo size="lg" />
 
         {error && <div className="mb-4 rounded-[14px] bg-red-50 px-4 py-3 text-[12px] leading-relaxed text-red-500">{error}</div>}
 
         <div className="space-y-3">
           <label className="flex items-center gap-3 rounded-[18px] border border-[#E7DED1] bg-white px-4 py-3.5 text-[#AAA093] shadow-[0_8px_20px_rgba(127,112,92,0.06)]">
             <MailIcon />
-            <input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              type="email"
-              placeholder="이메일 주소"
-              className="min-w-0 flex-1 bg-transparent text-[15px] font-medium text-[#4E4438] outline-none placeholder:text-[#B4A99B]"
-            />
+            <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="이메일 주소" className="min-w-0 flex-1 bg-transparent text-[15px] font-medium text-[#4E4438] outline-none placeholder:text-[#B4A99B]" />
           </label>
 
           <label className="flex items-center gap-3 rounded-[18px] border border-[#E7DED1] bg-white px-4 py-3.5 text-[#AAA093] shadow-[0_8px_20px_rgba(127,112,92,0.06)]">
             <LockIcon />
-            <input
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              type="password"
-              placeholder="비밀번호"
-              className="min-w-0 flex-1 bg-transparent text-[15px] font-medium text-[#4E4438] outline-none placeholder:text-[#B4A99B]"
-            />
+            <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="비밀번호" className="min-w-0 flex-1 bg-transparent text-[15px] font-medium text-[#4E4438] outline-none placeholder:text-[#B4A99B]" />
           </label>
         </div>
 
-        <button
-          type="button"
-          onClick={handleEmailLogin}
-          disabled={loading}
-          className="mt-5 w-full rounded-[20px] bg-gradient-to-r from-[#F0AF89] to-[#E58A61] py-4 text-[17px] font-bold text-white shadow-[0_14px_28px_rgba(219,132,91,0.28)] transition active:scale-[0.99] disabled:opacity-60"
-        >
+        <button type="button" onClick={handleEmailLogin} disabled={loading} className="mt-5 w-full rounded-[20px] bg-gradient-to-r from-[#F0AF89] to-[#E58A61] py-4 text-[17px] font-bold text-white shadow-[0_14px_28px_rgba(219,132,91,0.28)] transition active:scale-[0.99] disabled:opacity-60">
           {loading ? "로그인 중..." : "로그인"}
         </button>
 
-        <div className="my-6 flex items-center gap-3 text-[13px] font-medium text-[#B2A797]">
-          <div className="h-px flex-1 bg-[#E4DCCE]" />
-          <span>또는</span>
-          <div className="h-px flex-1 bg-[#E4DCCE]" />
-        </div>
+        <div className="my-6 flex items-center gap-3 text-[13px] font-medium text-[#B2A797]"><div className="h-px flex-1 bg-[#E4DCCE]" /><span>또는</span><div className="h-px flex-1 bg-[#E4DCCE]" /></div>
 
-        <button
-          type="button"
-          onClick={handleGoogleLogin}
-          disabled={loading}
-          className="flex w-full items-center justify-center gap-3 rounded-[18px] border border-[#E7DED1] bg-white py-4 text-[15px] font-bold text-[#4B4136] shadow-[0_10px_24px_rgba(127,112,92,0.08)] transition active:scale-[0.99] disabled:opacity-60"
-        >
+        <button type="button" onClick={handleGoogleLogin} disabled={loading} className="flex w-full items-center justify-center gap-3 rounded-[18px] border border-[#E7DED1] bg-white py-4 text-[15px] font-bold text-[#4B4136] shadow-[0_10px_24px_rgba(127,112,92,0.08)] transition active:scale-[0.99] disabled:opacity-60">
           <GoogleIcon />
           구글로 로그인
         </button>
