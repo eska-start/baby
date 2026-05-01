@@ -1,71 +1,100 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
+import { loginWithEmail, loginWithGoogleIdToken, refreshIdToken, saveUserProfile, signUpWithEmail } from "@/lib/firebase-client";
 
 export type AuthUser = { id: string; email: string; name: string };
 
 type AuthCtx = {
   user: AuthUser | null;
   isLoading: boolean;
-  login: (email: string, password: string) => { ok: boolean; error?: string };
-  signup: (name: string, email: string, password: string) => { ok: boolean; error?: string };
+  login: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
+  signup: (name: string, email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
+  loginWithGoogle: (googleIdToken: string) => Promise<{ ok: boolean; error?: string }>;
   logout: () => void;
 };
 
-type StoredUser = AuthUser & { password: string };
-
-const USERS_KEY = "ak-users";
+type SessionData = { user: AuthUser; refreshToken: string };
 const SESSION_KEY = "ak-session";
-
-function genId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-}
 
 const Ctx = createContext<AuthCtx>({
   user: null,
   isLoading: true,
-  login: () => ({ ok: false }),
-  signup: () => ({ ok: false }),
+  login: async () => ({ ok: false }),
+  signup: async () => ({ ok: false }),
+  loginWithGoogle: async () => ({ ok: false }),
   logout: () => {},
 });
+
+const mapError = (code: string) => {
+  if (code.includes("EMAIL_EXISTS")) return "이미 가입된 이메일이에요.";
+  if (code.includes("INVALID_LOGIN_CREDENTIALS")) return "이메일 또는 비밀번호가 올바르지 않아요.";
+  if (code.includes("WEAK_PASSWORD")) return "비밀번호는 6자 이상이어야 해요.";
+  return "인증 처리 중 오류가 발생했어요.";
+};
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    try {
-      const s = localStorage.getItem(SESSION_KEY);
-      if (s) setUser(JSON.parse(s));
-    } catch {}
-    setIsLoading(false);
+    const restore = async () => {
+      try {
+        const raw = localStorage.getItem(SESSION_KEY);
+        if (!raw) return;
+        const saved = JSON.parse(raw) as SessionData;
+        await refreshIdToken(saved.refreshToken);
+        setUser(saved.user);
+      } catch {
+        localStorage.removeItem(SESSION_KEY);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    void restore();
   }, []);
 
-  const getUsers = (): StoredUser[] => {
-    try { return JSON.parse(localStorage.getItem(USERS_KEY) ?? "[]"); } catch { return []; }
+  const login = async (email: string, password: string) => {
+    try {
+      const data = await loginWithEmail(email, password);
+      const nextUser = { id: data.localId, email: data.email, name: data.displayName ?? email.split("@")[0] };
+      setUser(nextUser);
+      localStorage.setItem(SESSION_KEY, JSON.stringify({ user: nextUser, refreshToken: data.refreshToken }));
+      await saveUserProfile(nextUser.id, data.idToken, { email: nextUser.email, name: nextUser.name });
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: mapError((e as Error).message) };
+    }
   };
 
-  const login = (email: string, password: string): { ok: boolean; error?: string } => {
-    const found = getUsers().find(
-      (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
-    );
-    if (!found) return { ok: false, error: "이메일 또는 비밀번호가 올바르지 않아요." };
-    const u: AuthUser = { id: found.id, email: found.email, name: found.name };
-    setUser(u);
-    localStorage.setItem(SESSION_KEY, JSON.stringify(u));
-    return { ok: true };
+  const signup = async (name: string, email: string, password: string) => {
+    try {
+      const data = await signUpWithEmail(email, password, name);
+      const nextUser = { id: data.localId, email: data.email, name };
+      setUser(nextUser);
+      localStorage.setItem(SESSION_KEY, JSON.stringify({ user: nextUser, refreshToken: data.refreshToken }));
+      await saveUserProfile(nextUser.id, data.idToken, { email, name });
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: mapError((e as Error).message) };
+    }
   };
 
-  const signup = (name: string, email: string, password: string): { ok: boolean; error?: string } => {
-    const users = getUsers();
-    if (users.find((u) => u.email.toLowerCase() === email.toLowerCase()))
-      return { ok: false, error: "이미 사용 중인 이메일이에요." };
-    const newUser: StoredUser = { id: genId(), email, name, password };
-    localStorage.setItem(USERS_KEY, JSON.stringify([...users, newUser]));
-    const u: AuthUser = { id: newUser.id, email: newUser.email, name: newUser.name };
-    setUser(u);
-    localStorage.setItem(SESSION_KEY, JSON.stringify(u));
-    return { ok: true };
+  const loginWithGoogle = async (googleIdToken: string) => {
+    try {
+      const data = await loginWithGoogleIdToken(googleIdToken);
+      const nextUser = {
+        id: data.localId,
+        email: data.email,
+        name: data.displayName ?? data.email.split("@")[0],
+      };
+      setUser(nextUser);
+      localStorage.setItem(SESSION_KEY, JSON.stringify({ user: nextUser, refreshToken: data.refreshToken }));
+      await saveUserProfile(nextUser.id, data.idToken, { email: nextUser.email, name: nextUser.name });
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: mapError((e as Error).message) };
+    }
   };
 
   const logout = () => {
@@ -73,7 +102,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem(SESSION_KEY);
   };
 
-  return <Ctx.Provider value={{ user, isLoading, login, signup, logout }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ user, isLoading, login, signup, loginWithGoogle, logout }}>{children}</Ctx.Provider>;
 }
 
 export const useAuth = () => useContext(Ctx);

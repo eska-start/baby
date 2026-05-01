@@ -15,13 +15,13 @@ export default function SignupPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password !== confirm) { setError("비밀번호가 일치하지 않아요."); return; }
     if (password.length < 6) { setError("비밀번호는 6자 이상이어야 해요."); return; }
     setLoading(true);
     setError("");
-    const result = signup(name.trim(), email, password);
+    const result = await signup(name.trim(), email, password);
     if (result.ok) {
       router.replace("/settings");
     } else {
