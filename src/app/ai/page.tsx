@@ -7,6 +7,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  serverTimestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { BottomNav, MobileTopBar, PageWrap, TopBar } from "@/components/AppShell";
@@ -58,6 +59,9 @@ export default function AIPage() {
           ...(d.data() as Omit<AnalysisRecord, "id">),
         })),
       );
+    }, (err) => {
+      console.error("Failed to load analysis history", err);
+      setError("분석 기록을 불러오지 못했어요. Firestore 권한을 확인해주세요.");
     });
     return () => unsub();
   }, [activeChild]);
@@ -102,28 +106,37 @@ export default function AIPage() {
 
   const saveResult = async () => {
     if (!result || !activeChild) return;
+    setError(null);
     const ext = result.extracted;
+    const canApplyToRecord =
+      result.type === "checkup" &&
+      ext["신장"] != null &&
+      ext["체중"] != null &&
+      ext["검진일자"] != null;
 
-    // Save analysis record to Firestore
-    await addDoc(collection(db, "children", activeChild.id, "analyses"), {
-      type: result.type,
-      fileName: file?.name ?? "unknown",
-      extracted: ext,
-      createdAt: new Date(),
-      appliedToRecord: result.type === "checkup" && ext["신장"] && ext["체중"],
-    });
-
-    // If checkup result with height/weight, save to growth records
-    if (result.type === "checkup" && ext["신장"] && ext["체중"] && ext["검진일자"]) {
-      addRecord({
-        date: String(ext["검진일자"]),
-        height: Number(ext["신장"]),
-        weight: Number(ext["체중"]),
-        note: String(ext["검진종류"] ?? "건강검진"),
+    try {
+      await addDoc(collection(db, "children", activeChild.id, "analyses"), {
+        type: result.type,
+        fileName: file?.name ?? "unknown",
+        extracted: ext,
+        createdAt: serverTimestamp(),
+        appliedToRecord: canApplyToRecord,
       });
-    }
 
-    setSaved(true);
+      if (canApplyToRecord) {
+        addRecord({
+          date: String(ext["검진일자"]),
+          height: Number(ext["신장"]),
+          weight: Number(ext["체중"]),
+          note: String(ext["검진종류"] ?? "건강검진"),
+        });
+      }
+
+      setSaved(true);
+    } catch (e) {
+      console.error("Failed to save analysis result", e);
+      setError("분석 결과 저장에 실패했어요. Firestore 권한이나 데이터 값을 확인해주세요.");
+    }
   };
 
   const resetUpload = () => {
