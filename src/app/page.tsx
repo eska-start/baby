@@ -1,21 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { BottomNav, MobileTopBar, PageWrap, TopBar } from "@/components/AppShell";
+import { BottomNav, MobileTopBar, PageWrap, TopBar, ChildSwitcher } from "@/components/AppShell";
 import { Icon } from "@/components/Icon";
 import { BmiGauge } from "@/components/BmiGauge";
 import { GrowthChart } from "@/components/GrowthChart";
-import { CHILD, VACCINES, bmi, bmiCategory, diff, shortDate } from "@/lib/data";
+import { bmi, bmiCategory, diff, shortDate, todayLabel, calcAgeLabel } from "@/lib/data";
 import { useRecords } from "./providers";
 
 export default function HomePage() {
-  const { records } = useRecords();
+  const { records, profile, vaccines } = useRecords();
   const last = records[records.length - 1];
   const prev = records[records.length - 2];
   const monthAgo = records[records.length - 5] ?? records[0];
   const bmiVal = bmi(last.height, last.weight);
   const cat = bmiCategory(bmiVal);
-  const upcoming = VACCINES.filter((v) => v.status === "upcoming")
+  const ageLabel = calcAgeLabel(profile.birth);
+  const upcoming = vaccines
+    .filter((v) => v.status === "upcoming")
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
 
   return (
@@ -23,31 +25,14 @@ export default function HomePage() {
       <TopBar />
       <MobileTopBar />
       <PageWrap>
-        {/* Mobile child switcher */}
-        <div className="md:hidden mb-4 mt-1 flex items-center gap-3">
-          <div className="flex flex-1 items-center gap-2.5 rounded-full border border-line bg-card py-1.5 pl-1.5 pr-3.5">
-            <div
-              className="flex h-8 w-8 items-center justify-center rounded-full"
-              style={{ background: CHILD.emojiBg }}
-            >
-              <Icon name="flower" size={15} color="#1F1A14" />
-            </div>
-            <div className="flex-1">
-              <div className="text-[13px] font-semibold text-ink">{CHILD.name}</div>
-              <div className="text-[10px] text-ink-mute">
-                {CHILD.ageLabel} · {CHILD.gender}
-              </div>
-            </div>
-            <Icon name="chevron-down" size={14} color="#8B8377" />
-          </div>
-        </div>
+        <ChildSwitcher />
 
         {/* Greeting (desktop only) */}
         <div className="hidden md:flex items-end justify-between pt-8 pb-6">
           <div>
             <div className="mb-1 text-[11px] tracking-[0.5px] text-ink-mute">DASHBOARD</div>
             <h1 className="font-serif text-[32px] font-medium text-ink">
-              안녕하세요, {CHILD.name} 보호자님
+              안녕하세요, {profile.name} 보호자님
             </h1>
             <p className="mt-1 text-[13px] text-ink-mute">
               오늘도 작은 변화를 차곡차곡 기록해 보세요.
@@ -68,7 +53,7 @@ export default function HomePage() {
             <div className="flex items-start justify-between">
               <div>
                 <div className="mb-0.5 text-[11px] tracking-[0.5px] text-ink-mute">오늘의 상태</div>
-                <div className="text-[14px] font-medium text-ink">2026년 4월 30일</div>
+                <div className="text-[14px] font-medium text-ink">{todayLabel()}</div>
               </div>
               <span
                 className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold"
@@ -80,15 +65,13 @@ export default function HomePage() {
             </div>
 
             <div className="mt-5 flex items-baseline gap-1.5">
-              <span
-                className="ko-num font-serif text-[64px] font-medium leading-none tracking-tight text-ink md:text-[72px]"
-              >
+              <span className="ko-num font-serif text-[64px] font-medium leading-none tracking-tight text-ink md:text-[72px]">
                 {bmiVal.toFixed(1)}
               </span>
               <span className="text-[16px] text-ink-mute">BMI</span>
             </div>
             <div className="mt-1 text-[12px] text-ink-mute">
-              또래 5세 여아 100명 중 상위 32등 수준이에요.
+              또래 {ageLabel} {profile.gender}아 기준 정상 범위예요.
             </div>
             <BmiGauge value={bmiVal} />
           </div>
@@ -99,7 +82,7 @@ export default function HomePage() {
               label="키"
               value={last.height.toFixed(1)}
               unit="cm"
-              delta={diff(last.height, prev.height)}
+              delta={prev ? diff(last.height, prev.height) : undefined}
               sub="이번 주"
               color="#5C7A5C"
             />
@@ -107,7 +90,7 @@ export default function HomePage() {
               label="몸무게"
               value={last.weight.toFixed(1)}
               unit="kg"
-              delta={diff(last.weight, prev.weight)}
+              delta={prev ? diff(last.weight, prev.weight) : undefined}
               sub="이번 주"
               color="#5C7A5C"
             />
@@ -115,7 +98,7 @@ export default function HomePage() {
               label="이번 달 키 증가"
               value={diff(last.height, monthAgo.height).replace("+", "+")}
               unit="cm"
-              sub="평균 +0.9 대비 우수"
+              sub="한 달 누적"
               color="#D77B50"
               tone="accent"
             />
@@ -138,7 +121,7 @@ export default function HomePage() {
               <div>
                 <div className="text-[13px] font-semibold text-ink">이번 시즌 키 변화</div>
                 <div className="mt-0.5 text-[11px] text-ink-mute">
-                  최근 7개월 · 점선은 또래 평균(P50)
+                  최근 {records.length}개월 · 점선은 또래 평균(P50)
                 </div>
               </div>
               <Link
@@ -180,9 +163,7 @@ export default function HomePage() {
                       {shortDate(r.date)}
                     </div>
                     <div className="flex flex-1 gap-3.5">
-                      <span className="ko-num text-[13px] font-medium text-ink">
-                        {r.height} cm
-                      </span>
+                      <span className="ko-num text-[13px] font-medium text-ink">{r.height} cm</span>
                       <span className="ko-num text-[13px] text-ink-soft">{r.weight} kg</span>
                     </div>
                     <span className="ko-num text-[11px] font-semibold text-good">
@@ -197,7 +178,6 @@ export default function HomePage() {
 
         {/* Bottom CTAs */}
         <section className="mt-3 grid gap-3 md:mt-4 md:grid-cols-12 md:gap-4">
-          {/* AI shortcut */}
           <Link
             href="/ai"
             className="md:col-span-7 group flex items-center gap-3.5 rounded-[22px] bg-ink p-4 text-white md:p-6"
@@ -214,7 +194,6 @@ export default function HomePage() {
             <Icon name="chevron-right" size={16} color="rgba(255,255,255,0.7)" />
           </Link>
 
-          {/* Upcoming reminder */}
           {upcoming && (
             <Link
               href="/schedule"
@@ -240,29 +219,16 @@ export default function HomePage() {
 }
 
 function StatCard({
-  label,
-  value,
-  unit,
-  delta,
-  sub,
-  color,
-  tone = "good",
+  label, value, unit, delta, sub, color, tone = "good",
 }: {
-  label: string;
-  value: string;
-  unit: string;
-  delta?: string;
-  sub: string;
-  color: string;
-  tone?: "good" | "accent" | "neutral";
+  label: string; value: string; unit: string; delta?: string;
+  sub: string; color: string; tone?: "good" | "accent" | "neutral";
 }) {
   return (
     <div className="rounded-[18px] border border-line bg-card px-4 py-4 md:px-5 md:py-5">
       <div className="mb-1.5 text-[11px] text-ink-mute">{label}</div>
       <div className="flex items-baseline gap-1">
-        <span className="ko-num font-serif text-[28px] font-medium text-ink md:text-[32px]">
-          {value}
-        </span>
+        <span className="ko-num font-serif text-[28px] font-medium text-ink md:text-[32px]">{value}</span>
         <span className="text-[12px] text-ink-mute">{unit}</span>
       </div>
       <div className="mt-1.5 flex items-center gap-1 text-[11px] font-semibold" style={{ color }}>

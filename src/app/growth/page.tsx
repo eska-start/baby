@@ -18,7 +18,7 @@ type MetricKey = (typeof METRICS)[number]["key"];
 export default function GrowthPage() {
   const [period, setPeriod] = useState<Period>("월간");
   const [metric, setMetric] = useState<MetricKey>("height");
-  const { records: GROWTH_RECORDS } = useRecords();
+  const { records: GROWTH_RECORDS, profile } = useRecords();
 
   const last = GROWTH_RECORDS[GROWTH_RECORDS.length - 1];
   const prev = GROWTH_RECORDS[GROWTH_RECORDS.length - 2];
@@ -45,7 +45,7 @@ export default function GrowthPage() {
         <div className="hidden md:flex items-end justify-between pt-8 pb-6">
           <div>
             <div className="mb-1 text-[11px] tracking-[0.5px] text-ink-mute">GROWTH TRACKER</div>
-            <h1 className="font-serif text-[32px] font-medium text-ink">이서율 성장 추이</h1>
+            <h1 className="font-serif text-[32px] font-medium text-ink">{profile.name} 성장 추이</h1>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex gap-1 rounded-[10px] border border-line bg-card p-1">

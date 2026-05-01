@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Icon } from "./Icon";
-import { CHILD } from "@/lib/data";
+import { useRecords } from "@/app/providers";
+import { calcAgeLabel } from "@/lib/data";
 
 const NAV = [
   { href: "/", label: "홈", icon: "home" },
@@ -15,6 +16,7 @@ const NAV = [
 
 export function TopBar() {
   const pathname = usePathname();
+  const { profile } = useRecords();
   return (
     <header className="hidden md:flex sticky top-0 z-30 h-16 items-center gap-6 border-b border-line bg-card/90 px-8 backdrop-blur">
       <Link href="/" className="font-serif text-[19px] font-semibold tracking-tight text-ink">
@@ -37,19 +39,26 @@ export function TopBar() {
         })}
       </nav>
       <div className="flex-1" />
-      <button className="flex h-9 w-9 items-center justify-center rounded-[10px] border border-line bg-card text-ink transition hover:bg-bg" aria-label="알림">
-        <Icon name="bell" size={16} />
-      </button>
-      <div className="flex items-center gap-2 rounded-full border border-line bg-bg py-1.5 pl-1.5 pr-3.5">
+      <Link
+        href="/settings"
+        className="flex h-9 w-9 items-center justify-center rounded-[10px] border border-line bg-card text-ink transition hover:bg-bg"
+        aria-label="설정"
+      >
+        <Icon name="settings" size={16} />
+      </Link>
+      <Link
+        href="/settings"
+        className="flex items-center gap-2 rounded-full border border-line bg-bg py-1.5 pl-1.5 pr-3.5"
+      >
         <div
           className="flex h-7 w-7 items-center justify-center rounded-full"
-          style={{ background: CHILD.emojiBg }}
+          style={{ background: "#F4B393" }}
         >
           <Icon name="flower" size={13} color="#1F1A14" />
         </div>
-        <span className="text-[13px] font-medium text-ink">{CHILD.name}</span>
+        <span className="text-[13px] font-medium text-ink">{profile.name}</span>
         <Icon name="chevron-down" size={13} color="#8B8377" />
-      </div>
+      </Link>
     </header>
   );
 }
@@ -89,9 +98,13 @@ export function MobileTopBar({
           {rightLabel}
         </button>
       ) : (
-        <button className="flex h-9 w-9 items-center justify-center rounded-[10px] border border-line bg-card" aria-label="알림">
-          <Icon name="bell" size={16} />
-        </button>
+        <Link
+          href="/settings"
+          className="flex h-9 w-9 items-center justify-center rounded-[10px] border border-line bg-card"
+          aria-label="설정"
+        >
+          <Icon name="settings" size={16} />
+        </Link>
       )}
     </div>
   );
@@ -124,4 +137,31 @@ export function BottomNav() {
 
 export function PageWrap({ children }: { children: React.ReactNode }) {
   return <main className="mx-auto w-full max-w-[1280px] px-4 pb-32 md:px-10 md:pb-16">{children}</main>;
+}
+
+export function ChildSwitcher() {
+  const { profile } = useRecords();
+  const ageLabel = calcAgeLabel(profile.birth);
+  return (
+    <div className="md:hidden mb-4 mt-1 flex items-center gap-3">
+      <Link
+        href="/settings"
+        className="flex flex-1 items-center gap-2.5 rounded-full border border-line bg-card py-1.5 pl-1.5 pr-3.5"
+      >
+        <div
+          className="flex h-8 w-8 items-center justify-center rounded-full"
+          style={{ background: "#F4B393" }}
+        >
+          <Icon name="flower" size={15} color="#1F1A14" />
+        </div>
+        <div className="flex-1">
+          <div className="text-[13px] font-semibold text-ink">{profile.name}</div>
+          <div className="text-[10px] text-ink-mute">
+            {ageLabel} · {profile.gender}아
+          </div>
+        </div>
+        <Icon name="chevron-down" size={14} color="#8B8377" />
+      </Link>
+    </div>
+  );
 }

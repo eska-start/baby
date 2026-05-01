@@ -80,3 +80,20 @@ export function shortDate(d: string) {
   const [, m, day] = d.split("-");
   return `${Number(m)}/${Number(day)}`;
 }
+
+export function calcAgeLabel(birth: string): string {
+  const b = new Date(birth);
+  const now = new Date();
+  let years = now.getFullYear() - b.getFullYear();
+  let months = now.getMonth() - b.getMonth();
+  if (now.getDate() < b.getDate()) months--;
+  if (months < 0) { years--; months += 12; }
+  if (years === 0) return `${months}개월`;
+  if (months === 0) return `${years}세`;
+  return `${years}세 ${months}개월`;
+}
+
+export function todayLabel(): string {
+  const d = new Date();
+  return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
+}
