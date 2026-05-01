@@ -1,20 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/auth-provider";
 
 export default function LoginPage() {
-  const { loginWithGoogle } = useAuth();
+  const { user, isLoading, loginWithGoogle } = useAuth();
   const router = useRouter();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading && user) router.replace("/");
+  }, [isLoading, user, router]);
 
   const handleGoogleLogin = async () => {
     setLoading(true);
     setError("");
     const result = await loginWithGoogle();
-    if (result.ok) router.replace("/");
+    if (result.ok) return;
     else {
       setError(result.error ?? "로그인 중 오류가 발생했어요.");
       setLoading(false);
