@@ -28,14 +28,33 @@ export default function GrowthPage() {
   const monthAgo = GROWTH_RECORDS[GROWTH_RECORDS.length - 5] ?? GROWTH_RECORDS[0];
   const seasonStart = GROWTH_RECORDS[0];
 
+  const tableRows = useMemo(() => [...GROWTH_RECORDS].reverse(), [GROWTH_RECORDS]);
+
+  if (!last) {
+    return (
+      <>
+        <TopBar />
+        <MobileTopBar back title="성장 추이" />
+        <PageWrap>
+          <div className="flex flex-col items-center justify-center py-24 text-center">
+            <div className="font-serif text-[22px] font-medium text-ink">아직 기록이 없어요</div>
+            <p className="mt-2 text-[13px] text-ink-mute">{profile.name}의 첫 성장 기록을 입력해보세요.</p>
+            <a href="/record" className="mt-6 inline-flex items-center gap-2 rounded-[12px] bg-ink px-5 py-3 text-[13px] font-semibold text-white">
+              기록 입력하기
+            </a>
+          </div>
+        </PageWrap>
+        <BottomNav />
+      </>
+    );
+  }
+
   const weekDelta = (last.height - prev.height).toFixed(1);
   const monthDelta = (last.height - monthAgo.height).toFixed(1);
   const seasonDelta = (last.height - seasonStart.height).toFixed(1);
   const weekDeltaW = (last.weight - prev.weight).toFixed(1);
   const monthDeltaW = (last.weight - monthAgo.weight).toFixed(1);
   const bmiVal = bmi(last.height, last.weight);
-
-  const tableRows = useMemo(() => [...GROWTH_RECORDS].reverse(), [GROWTH_RECORDS]);
 
   return (
     <>

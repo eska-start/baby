@@ -13,12 +13,36 @@ export default function HomePage() {
   const last = records[records.length - 1];
   const prev = records[records.length - 2];
   const monthAgo = records[records.length - 5] ?? records[0];
-  const bmiVal = bmi(last.height, last.weight);
-  const cat = bmiCategory(bmiVal);
   const ageLabel = calcAgeLabel(profile.birth);
   const upcoming = vaccines
     .filter((v) => v.status === "upcoming")
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
+
+  if (!last) {
+    return (
+      <>
+        <TopBar />
+        <MobileTopBar />
+        <PageWrap>
+          <ChildSwitcher />
+          <div className="flex flex-col items-center justify-center py-24 text-center">
+            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-accent-soft">
+              <Icon name="edit" size={24} color="#D77B50" />
+            </div>
+            <div className="font-serif text-[22px] font-medium text-ink">아직 기록이 없어요</div>
+            <p className="mt-2 text-[13px] text-ink-mute">{profile.name}의 첫 성장 기록을 입력해보세요.</p>
+            <Link href="/record" className="mt-6 inline-flex items-center gap-2 rounded-[12px] bg-ink px-5 py-3 text-[13px] font-semibold text-white">
+              <Icon name="edit" size={14} color="#fff" /> 기록 입력하기
+            </Link>
+          </div>
+        </PageWrap>
+        <BottomNav />
+      </>
+    );
+  }
+
+  const bmiVal = bmi(last.height, last.weight);
+  const cat = bmiCategory(bmiVal);
 
   return (
     <>
