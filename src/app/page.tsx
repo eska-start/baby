@@ -9,7 +9,7 @@ import { bmi, bmiCategory, diff, shortDate, todayLabel, calcAgeLabel } from "@/l
 import { useRecords } from "./providers";
 
 export default function HomePage() {
-  const { records, profile, vaccines } = useRecords();
+  const { records, activeChild: profile, vaccines } = useRecords();
   const last = records[records.length - 1];
   const prev = records[records.length - 2];
   const monthAgo = records[records.length - 5] ?? records[0];

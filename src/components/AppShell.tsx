@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Icon } from "./Icon";
 import { useRecords } from "@/app/providers";
 import { calcAgeLabel } from "@/lib/data";
+import { useState } from "react";
 
 const NAV = [
   { href: "/", label: "홈", icon: "home" },
@@ -16,7 +17,7 @@ const NAV = [
 
 export function TopBar() {
   const pathname = usePathname();
-  const { profile } = useRecords();
+  const { activeChild: profile } = useRecords();
   return (
     <header className="hidden md:flex sticky top-0 z-30 h-16 items-center gap-6 border-b border-line bg-card/90 px-8 backdrop-blur">
       <Link href="/" className="font-serif text-[19px] font-semibold tracking-tight text-ink">
@@ -140,28 +141,52 @@ export function PageWrap({ children }: { children: React.ReactNode }) {
 }
 
 export function ChildSwitcher() {
-  const { profile } = useRecords();
-  const ageLabel = calcAgeLabel(profile.birth);
+  const { children, activeChild, setActiveChild } = useRecords();
+  const [open, setOpen] = useState(false);
+  const ageLabel = calcAgeLabel(activeChild.birth);
+
   return (
-    <div className="md:hidden mb-4 mt-1 flex items-center gap-3">
-      <Link
-        href="/settings"
-        className="flex flex-1 items-center gap-2.5 rounded-full border border-line bg-card py-1.5 pl-1.5 pr-3.5"
+    <div className="md:hidden mb-4 mt-1 relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-2.5 rounded-full border border-line bg-card py-1.5 pl-1.5 pr-3.5"
       >
-        <div
-          className="flex h-8 w-8 items-center justify-center rounded-full"
-          style={{ background: "#F4B393" }}
-        >
+        <div className="flex h-8 w-8 items-center justify-center rounded-full" style={{ background: "#F4B393" }}>
           <Icon name="flower" size={15} color="#1F1A14" />
         </div>
-        <div className="flex-1">
-          <div className="text-[13px] font-semibold text-ink">{profile.name}</div>
-          <div className="text-[10px] text-ink-mute">
-            {ageLabel} · {profile.gender}아
-          </div>
+        <div className="flex-1 text-left">
+          <div className="text-[13px] font-semibold text-ink">{activeChild.name}</div>
+          <div className="text-[10px] text-ink-mute">{ageLabel} · {activeChild.gender}아</div>
         </div>
         <Icon name="chevron-down" size={14} color="#8B8377" />
-      </Link>
+      </button>
+      {open && (
+        <div className="absolute left-0 right-0 top-full mt-1 z-40 overflow-hidden rounded-[14px] border border-line bg-card shadow-soft">
+          {children.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => { setActiveChild(c.id); setOpen(false); }}
+              className={`flex w-full items-center gap-2.5 px-4 py-3 text-left transition hover:bg-bg ${c.id === activeChild.id ? "bg-bg" : ""}`}
+            >
+              <div className="flex h-7 w-7 items-center justify-center rounded-full" style={{ background: "#F4B393" }}>
+                <Icon name="flower" size={12} color="#1F1A14" />
+              </div>
+              <div className="flex-1">
+                <div className="text-[13px] font-medium text-ink">{c.name}</div>
+                <div className="text-[10px] text-ink-mute">{calcAgeLabel(c.birth)} · {c.gender}아</div>
+              </div>
+              {c.id === activeChild.id && <Icon name="check" size={13} color="#5C7A5C" strokeWidth={2.4} />}
+            </button>
+          ))}
+          <Link
+            href="/settings"
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2 border-t border-line px-4 py-3 text-[12px] font-medium text-accent"
+          >
+            <Icon name="settings" size={13} color="#D77B50" /> 아이 관리
+          </Link>
+        </div>
+      )}
     </div>
   );
 }
