@@ -98,16 +98,24 @@ export default function SettingsPage() {
   const { children, activeChild, setActiveChild, addChild, updateChild, deleteChild, records } = useRecords();
   const [mode, setMode] = useState<Mode>({ type: "list" });
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2500);
+  };
 
   const titleMap = { list: "아이 관리", edit: "아이 정보 수정", add: "새 아이 추가" };
 
   return (
     <>
       <TopBar />
-      <MobileTopBar
-        back={mode.type !== "list"}
-        title={titleMap[mode.type]}
-      />
+      <MobileTopBar back={mode.type !== "list"} title={titleMap[mode.type]} />
+      {toast && (
+        <div className="fixed top-4 left-1/2 z-50 -translate-x-1/2 rounded-[12px] bg-ink px-5 py-3 text-[13px] font-medium text-white shadow-lg">
+          {toast}
+        </div>
+      )}
       <PageWrap>
         <div className="hidden md:flex items-end justify-between pt-8 pb-6">
           <div>
@@ -172,7 +180,7 @@ export default function SettingsPage() {
                       confirmDeleteId === child.id ? (
                         <div className="flex items-center gap-1">
                           <button onClick={() => setConfirmDeleteId(null)} className="rounded-[6px] border border-line bg-bg px-2 py-1 text-[11px] text-ink-mute">취소</button>
-                          <button onClick={() => { deleteChild(child.id); setConfirmDeleteId(null); }} className="rounded-[6px] bg-red-500 px-2 py-1 text-[11px] font-semibold text-white">삭제</button>
+                          <button onClick={() => { deleteChild(child.id); setConfirmDeleteId(null); showToast(`${child.name} 삭제됐어요`); }} className="rounded-[6px] bg-red-500 px-2 py-1 text-[11px] font-semibold text-white">삭제</button>
                         </div>
                       ) : (
                         <button
@@ -214,7 +222,7 @@ export default function SettingsPage() {
           return (
             <ChildForm
               initial={{ name: child.name, birth: child.birth, gender: child.gender }}
-              onSave={(v) => { updateChild(mode.id, v); setMode({ type: "list" }); }}
+              onSave={(v) => { updateChild(mode.id, v); setMode({ type: "list" }); showToast("저장됐어요"); }}
               onCancel={() => setMode({ type: "list" })}
               isAdd={false}
             />
@@ -225,7 +233,7 @@ export default function SettingsPage() {
         {mode.type === "add" && (
           <ChildForm
             initial={{ name: "", birth: "", gender: "여" }}
-            onSave={(v) => { addChild(v); setMode({ type: "list" }); }}
+            onSave={(v) => { addChild(v); setMode({ type: "list" }); showToast(`${v.name} 추가됐어요`); }}
             onCancel={() => setMode({ type: "list" })}
             isAdd={true}
           />

@@ -156,6 +156,11 @@ export function RecordsProvider({ children: rc }: { children: React.ReactNode })
 
   const addRecord = (r: GrowthRecord) => {
     if (!activeId) return;
+    setRecords((prev) =>
+      [...prev.filter((x) => x.date !== r.date), r].sort((a, b) =>
+        a.date.localeCompare(b.date),
+      ),
+    );
     void setDoc(doc(db, "children", activeId, "records", r.date), {
       date: r.date,
       height: r.height,
@@ -167,11 +172,17 @@ export function RecordsProvider({ children: rc }: { children: React.ReactNode })
 
   const deleteRecord = (date: string) => {
     if (!activeId) return;
+    setRecords((prev) => prev.filter((r) => r.date !== date));
     void deleteDoc(doc(db, "children", activeId, "records", date));
   };
 
   const updateRecord = (date: string, updated: GrowthRecord) => {
     if (!activeId) return;
+    setRecords((prev) =>
+      [...prev.filter((r) => r.date !== date && r.date !== updated.date), updated].sort((a, b) =>
+        a.date.localeCompare(b.date),
+      ),
+    );
     if (date !== updated.date) {
       void deleteDoc(doc(db, "children", activeId, "records", date));
     }
@@ -187,6 +198,12 @@ export function RecordsProvider({ children: rc }: { children: React.ReactNode })
   const addChild = (profile: Omit<ChildProfile, "id">) => {
     if (!user) return;
     const ref = doc(collection(db, "children"));
+    const newChild: ChildProfile = { id: ref.id, ...profile };
+    setList((prev) => [...prev, newChild]);
+    if (!activeId) {
+      setActiveIdState(ref.id);
+      localStorage.setItem(ACTIVE_KEY, ref.id);
+    }
     void setDoc(ref, {
       userId: user.id,
       name: profile.name,
@@ -195,13 +212,10 @@ export function RecordsProvider({ children: rc }: { children: React.ReactNode })
       createdAt: serverTimestamp(),
     });
     void setDoc(doc(db, "children", ref.id, "meta", "vaccines"), { list: VACCINES });
-    if (!activeId) {
-      setActiveIdState(ref.id);
-      localStorage.setItem(ACTIVE_KEY, ref.id);
-    }
   };
 
   const updateChild = (id: string, updates: Omit<ChildProfile, "id">) => {
+    setList((prev) => prev.map((c) => (c.id === id ? { ...c, ...updates } : c)));
     void setDoc(
       doc(db, "children", id),
       { name: updates.name, birth: updates.birth, gender: updates.gender },
@@ -211,14 +225,13 @@ export function RecordsProvider({ children: rc }: { children: React.ReactNode })
 
   const deleteChild = (id: string) => {
     if (list.length <= 1) return;
-    void deleteDoc(doc(db, "children", id));
-    if (activeId === id) {
-      const next = list.find((c) => c.id !== id);
-      if (next) {
-        setActiveIdState(next.id);
-        localStorage.setItem(ACTIVE_KEY, next.id);
-      }
+    const next = list.filter((c) => c.id !== id);
+    setList(next);
+    if (activeId === id && next.length > 0) {
+      setActiveIdState(next[0].id);
+      localStorage.setItem(ACTIVE_KEY, next[0].id);
     }
+    void deleteDoc(doc(db, "children", id));
   };
 
   const saveVaccines = (vacs: Vaccine[]) => {
