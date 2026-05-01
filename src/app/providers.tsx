@@ -1,7 +1,20 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
-import { GrowthRecord, GROWTH_RECORDS, Vaccine, VACCINES } from "@/lib/data";
+import {
+  collection,
+  doc,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  setDoc,
+  deleteDoc,
+  where,
+} from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { useAuth } from "./auth-provider";
+import { GrowthRecord, Vaccine, VACCINES } from "@/lib/data";
 
 export type ChildProfile = {
   id: string;
@@ -44,10 +57,7 @@ const AppCtx = createContext<Ctx>({
   postponeVaccine: () => {},
 });
 
-const CHILDREN_KEY = "ai-gyeol-children";
 const ACTIVE_KEY = "ai-gyeol-active";
-const rKey = (id: string) => `ai-gyeol-r-${id}`;
-const vKey = (id: string) => `ai-gyeol-v-${id}`;
 
 function shiftDate(s: string, days: number): string {
   const d = new Date(s);
@@ -56,124 +66,200 @@ function shiftDate(s: string, days: number): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
-function genId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
-}
-
-function loadJSON<T>(key: string, fallback: T): T {
-  try {
-    const s = localStorage.getItem(key);
-    return s ? (JSON.parse(s) as T) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
 export function RecordsProvider({ children: rc }: { children: React.ReactNode }) {
+  const { user } = useAuth();
   const [list, setList] = useState<ChildProfile[]>([]);
   const [activeId, setActiveIdState] = useState<string | null>(null);
-  const [rMap, setRMap] = useState<Record<string, GrowthRecord[]>>({});
-  const [vMap, setVMap] = useState<Record<string, Vaccine[]>>({});
+  const [records, setRecords] = useState<GrowthRecord[]>([]);
+  const [vaccines, setVaccines] = useState<Vaccine[]>([]);
 
+  // Subscribe to children collection for this user
   useEffect(() => {
-    const children = loadJSON<ChildProfile[]>(CHILDREN_KEY, []);
-    if (!children.length) return;
-    setList(children);
-
-    const savedId = localStorage.getItem(ACTIVE_KEY);
-    const aid = savedId && children.find((c) => c.id === savedId) ? savedId : children[0].id;
-    setActiveIdState(aid);
-
-    const rm: Record<string, GrowthRecord[]> = {};
-    const vm: Record<string, Vaccine[]> = {};
-    for (const c of children) {
-      rm[c.id] = loadJSON<GrowthRecord[]>(rKey(c.id), []);
-      vm[c.id] = loadJSON<Vaccine[]>(vKey(c.id), VACCINES);
+    if (!user) {
+      setList([]);
+      setRecords([]);
+      setVaccines([]);
+      setActiveIdState(null);
+      return;
     }
-    setRMap(rm);
-    setVMap(vm);
-  }, []);
+
+    const q = query(collection(db, "children"), where("userId", "==", user.id));
+    const unsub = onSnapshot(q, (snap) => {
+      const children: ChildProfile[] = snap.docs.map((d) => ({
+        id: d.id,
+        name: d.data().name as string,
+        birth: d.data().birth as string,
+        gender: d.data().gender as "여" | "남",
+      }));
+      setList(children);
+
+      setActiveIdState((cur) => {
+        if (cur && children.find((c) => c.id === cur)) return cur;
+        const saved = localStorage.getItem(ACTIVE_KEY);
+        if (saved && children.find((c) => c.id === saved)) return saved;
+        return children[0]?.id ?? null;
+      });
+    });
+
+    return () => unsub();
+  }, [user]);
+
+  // Subscribe to records for active child
+  useEffect(() => {
+    if (!activeId) {
+      setRecords([]);
+      return;
+    }
+
+    const q = query(
+      collection(db, "children", activeId, "records"),
+      orderBy("date", "asc"),
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      setRecords(
+        snap.docs.map((d) => ({
+          date: d.data().date as string,
+          height: d.data().height as number,
+          weight: d.data().weight as number,
+          note: d.data().note as string | undefined,
+        })),
+      );
+    });
+
+    return () => unsub();
+  }, [activeId]);
+
+  // Subscribe to vaccines for active child
+  useEffect(() => {
+    if (!activeId) {
+      setVaccines([]);
+      return;
+    }
+
+    const unsub = onSnapshot(doc(db, "children", activeId, "meta", "vaccines"), (snap) => {
+      if (snap.exists()) {
+        setVaccines(snap.data().list as Vaccine[]);
+      } else {
+        setVaccines(VACCINES);
+      }
+    });
+
+    return () => unsub();
+  }, [activeId]);
 
   const activeChild = (activeId ? list.find((c) => c.id === activeId) : null) ?? list[0] ?? null;
-  const records = activeId ? (rMap[activeId] ?? []) : [];
-  const vaccines = activeId ? (vMap[activeId] ?? []) : [];
-
-  const saveList = (next: ChildProfile[]) => {
-    setList(next);
-    localStorage.setItem(CHILDREN_KEY, JSON.stringify(next));
-  };
-  const saveRecords = (id: string, recs: GrowthRecord[]) => {
-    setRMap((p) => ({ ...p, [id]: recs }));
-    localStorage.setItem(rKey(id), JSON.stringify(recs));
-  };
-  const saveVaccines = (id: string, vacs: Vaccine[]) => {
-    setVMap((p) => ({ ...p, [id]: vacs }));
-    localStorage.setItem(vKey(id), JSON.stringify(vacs));
-  };
-
-  const addRecord = (r: GrowthRecord) => {
-    if (!activeId) return;
-    saveRecords(activeId, [...records.filter((x) => x.date !== r.date), r].sort((a, b) => a.date.localeCompare(b.date)));
-  };
-  const deleteRecord = (date: string) => {
-    if (!activeId) return;
-    saveRecords(activeId, records.filter((r) => r.date !== date));
-  };
-  const updateRecord = (date: string, updated: GrowthRecord) => {
-    if (!activeId) return;
-    saveRecords(activeId, records.map((r) => (r.date === date ? updated : r)).sort((a, b) => a.date.localeCompare(b.date)));
-  };
 
   const setActiveChild = (id: string) => {
     setActiveIdState(id);
     localStorage.setItem(ACTIVE_KEY, id);
-    if (!rMap[id]) {
-      setRMap((p) => ({ ...p, [id]: loadJSON<GrowthRecord[]>(rKey(id), []) }));
-      setVMap((p) => ({ ...p, [id]: loadJSON<Vaccine[]>(vKey(id), [...VACCINES]) }));
-    }
   };
+
+  const addRecord = (r: GrowthRecord) => {
+    if (!activeId) return;
+    void setDoc(doc(db, "children", activeId, "records", r.date), {
+      date: r.date,
+      height: r.height,
+      weight: r.weight,
+      note: r.note ?? null,
+      createdAt: serverTimestamp(),
+    });
+  };
+
+  const deleteRecord = (date: string) => {
+    if (!activeId) return;
+    void deleteDoc(doc(db, "children", activeId, "records", date));
+  };
+
+  const updateRecord = (date: string, updated: GrowthRecord) => {
+    if (!activeId) return;
+    if (date !== updated.date) {
+      void deleteDoc(doc(db, "children", activeId, "records", date));
+    }
+    void setDoc(doc(db, "children", activeId, "records", updated.date), {
+      date: updated.date,
+      height: updated.height,
+      weight: updated.weight,
+      note: updated.note ?? null,
+      createdAt: serverTimestamp(),
+    });
+  };
+
   const addChild = (profile: Omit<ChildProfile, "id">) => {
-    const id = genId();
-    const child = { id, ...profile };
-    const next = [...list, child];
-    saveList(next);
-    saveRecords(id, []);
-    saveVaccines(id, [...VACCINES]);
-    setRMap((p) => ({ ...p, [id]: [] }));
-    setVMap((p) => ({ ...p, [id]: [...VACCINES] }));
+    if (!user) return;
+    const ref = doc(collection(db, "children"));
+    void setDoc(ref, {
+      userId: user.id,
+      name: profile.name,
+      birth: profile.birth,
+      gender: profile.gender,
+      createdAt: serverTimestamp(),
+    });
+    void setDoc(doc(db, "children", ref.id, "meta", "vaccines"), { list: VACCINES });
     if (!activeId) {
-      setActiveIdState(id);
-      localStorage.setItem(ACTIVE_KEY, id);
+      setActiveIdState(ref.id);
+      localStorage.setItem(ACTIVE_KEY, ref.id);
     }
   };
-  const updateChild = (id: string, updates: Omit<ChildProfile, "id">) =>
-    saveList(list.map((c) => (c.id === id ? { ...c, ...updates } : c)));
+
+  const updateChild = (id: string, updates: Omit<ChildProfile, "id">) => {
+    void setDoc(
+      doc(db, "children", id),
+      { name: updates.name, birth: updates.birth, gender: updates.gender },
+      { merge: true },
+    );
+  };
+
   const deleteChild = (id: string) => {
     if (list.length <= 1) return;
-    const next = list.filter((c) => c.id !== id);
-    saveList(next);
-    localStorage.removeItem(rKey(id));
-    localStorage.removeItem(vKey(id));
-    setRMap((p) => { const n = { ...p }; delete n[id]; return n; });
-    setVMap((p) => { const n = { ...p }; delete n[id]; return n; });
+    void deleteDoc(doc(db, "children", id));
     if (activeId === id) {
-      const newId = next[0].id;
-      setActiveIdState(newId);
-      localStorage.setItem(ACTIVE_KEY, newId);
+      const next = list.find((c) => c.id !== id);
+      if (next) {
+        setActiveIdState(next.id);
+        localStorage.setItem(ACTIVE_KEY, next.id);
+      }
     }
+  };
+
+  const saveVaccines = (vacs: Vaccine[]) => {
+    if (!activeId) return;
+    void setDoc(doc(db, "children", activeId, "meta", "vaccines"), { list: vacs });
   };
 
   const completeVaccine = (name: string, round?: string) => {
-    if (!activeId) return;
-    saveVaccines(activeId, vaccines.map((v) => v.name === name && v.round === round ? { ...v, status: "done" as const } : v));
+    const updated = vaccines.map((v) =>
+      v.name === name && v.round === round ? { ...v, status: "done" as const } : v,
+    );
+    setVaccines(updated);
+    saveVaccines(updated);
   };
+
   const postponeVaccine = (name: string, round: string | undefined, days: number) => {
-    if (!activeId) return;
-    saveVaccines(activeId, vaccines.map((v) => v.name === name && v.round === round ? { ...v, dueDate: shiftDate(v.dueDate, days) } : v));
+    const updated = vaccines.map((v) =>
+      v.name === name && v.round === round ? { ...v, dueDate: shiftDate(v.dueDate, days) } : v,
+    );
+    setVaccines(updated);
+    saveVaccines(updated);
   };
 
   return (
-    <AppCtx.Provider value={{ records, addRecord, deleteRecord, updateRecord, children: list, activeChild, setActiveChild, addChild, updateChild, deleteChild, vaccines, completeVaccine, postponeVaccine }}>
+    <AppCtx.Provider
+      value={{
+        records,
+        addRecord,
+        deleteRecord,
+        updateRecord,
+        children: list,
+        activeChild,
+        setActiveChild,
+        addChild,
+        updateChild,
+        deleteChild,
+        vaccines,
+        completeVaccine,
+        postponeVaccine,
+      }}
+    >
       {rc}
     </AppCtx.Provider>
   );
