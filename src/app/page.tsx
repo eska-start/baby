@@ -1,327 +1,85 @@
 "use client";
 
-import Link from "next/link";
-import { BottomNav, MobileTopBar, PageWrap, TopBar, ChildSwitcher } from "@/components/AppShell";
-import { Icon } from "@/components/Icon";
-import { BmiGauge } from "@/components/BmiGauge";
-import { GrowthChart } from "@/components/GrowthChart";
-import { GrowthRecord, bmi, bmiCategory, diff, shortDate, todayLabel, calcAgeLabel } from "@/lib/data";
-import { useRecords } from "./providers";
+import { FormEvent, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { addDoc, collection, onSnapshot, orderBy, query, serverTimestamp, where } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { useAuth } from "@/app/auth-provider";
 
-function buildShareUrl(profile: { name: string; birth: string; gender: string }, records: GrowthRecord[]): string {
-  const data = { name: profile.name, birth: profile.birth, gender: profile.gender, records, sharedAt: new Date().toISOString() };
-  const encoded = btoa(encodeURIComponent(JSON.stringify(data)));
-  return `${window.location.origin}/share?d=${encoded}`;
-}
+type RecordItem = {
+  id: string;
+  userId: string;
+  height: number;
+  weight: number;
+  date: string;
+};
 
 export default function HomePage() {
-  const { records, activeChild: profile, vaccines } = useRecords();
-  const last = records[records.length - 1];
-  const prev = records[records.length - 2];
-  const monthAgo = records[records.length - 5] ?? records[0];
-  const ageLabel = profile ? calcAgeLabel(profile.birth) : "";
-  const upcoming = vaccines
-    .filter((v) => v.status === "upcoming")
-    .sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
+  const { user, isLoading, logout } = useAuth();
+  const router = useRouter();
+  const [height, setHeight] = useState("");
+  const [weight, setWeight] = useState("");
+  const [records, setRecords] = useState<RecordItem[]>([]);
+  const [saving, setSaving] = useState(false);
 
-  const handleShare = () => {
-    if (!profile) return;
-    const url = buildShareUrl(profile, records);
-    if (navigator.share) {
-      navigator.share({ title: `${profile.name} 성장 기록`, url });
-    } else {
-      navigator.clipboard.writeText(url).then(() => alert("공유 링크가 복사되었어요!"));
-    }
+  useEffect(() => {
+    if (!isLoading && !user) router.replace("/login");
+  }, [isLoading, user, router]);
+
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, "records"), where("userId", "==", user.id), orderBy("date", "desc"));
+    const unsub = onSnapshot(q, (snap) => {
+      const next = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<RecordItem, "id">) }));
+      setRecords(next);
+    });
+    return () => unsub();
+  }, [user]);
+
+  const saveRecord = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    setSaving(true);
+    await addDoc(collection(db, "records"), {
+      userId: user.id,
+      height: Number(height),
+      weight: Number(weight),
+      date: new Date().toISOString().slice(0, 10),
+      createdAt: serverTimestamp(),
+    });
+    setHeight("");
+    setWeight("");
+    setSaving(false);
   };
 
-  if (!profile) {
-    return (
-      <>
-        <TopBar />
-        <MobileTopBar />
-        <PageWrap>
-          <div className="flex flex-col items-center justify-center py-24 text-center">
-            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-accent-soft">
-              <Icon name="user" size={24} color="#D77B50" />
-            </div>
-            <div className="font-serif text-[22px] font-medium text-ink">아이 정보를 먼저 등록해주세요</div>
-            <p className="mt-2 text-[13px] text-ink-mute">설정에서 아이 프로필을 추가하면 기록을 시작할 수 있어요.</p>
-            <Link href="/settings" className="mt-6 inline-flex items-center gap-2 rounded-[12px] bg-ink px-5 py-3 text-[13px] font-semibold text-white">
-              <Icon name="settings" size={14} color="#fff" /> 설정으로 이동
-            </Link>
-          </div>
-        </PageWrap>
-        <BottomNav />
-      </>
-    );
-  }
-
-  if (!last) {
-    return (
-      <>
-        <TopBar />
-        <MobileTopBar />
-        <PageWrap>
-          <ChildSwitcher />
-          <div className="flex flex-col items-center justify-center py-24 text-center">
-            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-accent-soft">
-              <Icon name="edit" size={24} color="#D77B50" />
-            </div>
-            <div className="font-serif text-[22px] font-medium text-ink">아직 기록이 없어요</div>
-            <p className="mt-2 text-[13px] text-ink-mute">{profile.name}의 첫 성장 기록을 입력해보세요.</p>
-            <Link href="/record" className="mt-6 inline-flex items-center gap-2 rounded-[12px] bg-ink px-5 py-3 text-[13px] font-semibold text-white">
-              <Icon name="edit" size={14} color="#fff" /> 기록 입력하기
-            </Link>
-          </div>
-        </PageWrap>
-        <BottomNav />
-      </>
-    );
-  }
-
-  const bmiVal = bmi(last.height, last.weight);
-  const cat = bmiCategory(bmiVal);
+  if (isLoading || !user) return <div className="p-6 text-center">로딩 중...</div>;
 
   return (
-    <>
-      <TopBar />
-      <MobileTopBar />
-      <PageWrap>
-        <ChildSwitcher />
-
-        {/* Mobile share button */}
-        <div className="md:hidden mb-3 flex justify-end">
-          <button
-            onClick={handleShare}
-            className="inline-flex items-center gap-1.5 rounded-[10px] border border-line bg-card px-3 py-2 text-[12px] font-medium text-ink-soft"
-          >
-            <Icon name="share" size={13} color="#8B8377" /> 공유
-          </button>
+    <main className="mx-auto min-h-screen w-full max-w-md bg-bg p-4">
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <h1 className="font-serif text-2xl text-ink">아이 성장 기록</h1>
+          <p className="text-xs text-ink-mute">{user.name}님 반가워요</p>
         </div>
-
-        {/* Greeting (desktop only) */}
-        <div className="hidden md:flex items-end justify-between pt-8 pb-6">
-          <div>
-            <div className="mb-1 text-[11px] tracking-[0.5px] text-ink-mute">DASHBOARD</div>
-            <h1 className="font-serif text-[32px] font-medium text-ink">
-              안녕하세요, {profile.name} 보호자님
-            </h1>
-            <p className="mt-1 text-[13px] text-ink-mute">
-              오늘도 작은 변화를 차곡차곡 기록해 보세요.
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={handleShare}
-              className="inline-flex items-center gap-2 rounded-[12px] border border-line bg-card px-4 py-3 text-[13px] font-medium text-ink-soft transition hover:bg-bg"
-            >
-              <Icon name="share" size={14} color="#8B8377" /> 공유
-            </button>
-            <Link
-              href="/record"
-              className="inline-flex items-center gap-2 rounded-[12px] bg-ink px-5 py-3 text-[13px] font-semibold text-white transition hover:bg-black"
-            >
-              <Icon name="edit" size={14} color="#fff" /> 새 기록
-            </Link>
-          </div>
-        </div>
-
-        {/* Top grid */}
-        <section className="grid gap-3 md:grid-cols-12 md:gap-4">
-          {/* BMI big card */}
-          <div className="md:col-span-7 rounded-[22px] border border-line bg-card px-6 py-6 md:px-7 md:py-7">
-            <div className="flex items-start justify-between">
-              <div>
-                <div className="mb-0.5 text-[11px] tracking-[0.5px] text-ink-mute">오늘의 상태</div>
-                <div className="text-[14px] font-medium text-ink">{todayLabel()}</div>
-              </div>
-              <span
-                className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold"
-                style={{ color: cat.color, background: cat.bg }}
-              >
-                <span className="h-1.5 w-1.5 rounded-full" style={{ background: cat.color }} />
-                {cat.label}
-              </span>
-            </div>
-
-            <div className="mt-5 flex items-baseline gap-1.5">
-              <span className="ko-num font-serif text-[64px] font-medium leading-none tracking-tight text-ink md:text-[72px]">
-                {bmiVal.toFixed(1)}
-              </span>
-              <span className="text-[16px] text-ink-mute">BMI</span>
-            </div>
-            <div className="mt-1 text-[12px] text-ink-mute">
-              또래 {ageLabel} {profile.gender}아 기준 정상 범위예요.
-            </div>
-            <BmiGauge value={bmiVal} />
-          </div>
-
-          {/* Quick stats */}
-          <div className="md:col-span-5 grid grid-cols-2 gap-3 md:gap-4">
-            <StatCard
-              label="키"
-              value={last.height.toFixed(1)}
-              unit="cm"
-              delta={prev ? diff(last.height, prev.height) : undefined}
-              sub="이번 주"
-              color="#5C7A5C"
-            />
-            <StatCard
-              label="몸무게"
-              value={last.weight.toFixed(1)}
-              unit="kg"
-              delta={prev ? diff(last.weight, prev.weight) : undefined}
-              sub="이번 주"
-              color="#5C7A5C"
-            />
-            <StatCard
-              label="이번 달 키 증가"
-              value={diff(last.height, monthAgo.height).replace("+", "+")}
-              unit="cm"
-              sub="한 달 누적"
-              color="#D77B50"
-              tone="accent"
-            />
-            <StatCard
-              label="기록 일수"
-              value={String(records.length)}
-              unit="회"
-              sub="이번 시즌 누적"
-              color="#4A4239"
-              tone="neutral"
-            />
-          </div>
-        </section>
-
-        {/* Mid grid */}
-        <section className="mt-3 grid gap-3 md:mt-4 md:grid-cols-12 md:gap-4">
-          {/* Mini chart */}
-          <div className="md:col-span-7 rounded-[22px] border border-line bg-card p-5 md:p-6">
-            <div className="mb-3 flex items-center justify-between">
-              <div>
-                <div className="text-[13px] font-semibold text-ink">이번 시즌 키 변화</div>
-                <div className="mt-0.5 text-[11px] text-ink-mute">
-                  최근 {records.length}개월 · 점선은 또래 평균(P50)
-                </div>
-              </div>
-              <Link
-                href="/growth"
-                className="inline-flex items-center gap-1 text-[11px] font-medium text-accent"
-              >
-                자세히 <Icon name="arrow-right" size={11} color="#D77B50" />
-              </Link>
-            </div>
-            <GrowthChart metric="height" height={220} />
-            <div className="mt-2 flex justify-between px-2 text-[10px] text-ink-mute">
-              {records.map((r) => (
-                <span key={r.date}>{shortDate(r.date)}</span>
-              ))}
-            </div>
-          </div>
-
-          {/* Recent records */}
-          <div className="md:col-span-5 rounded-[22px] border border-line bg-card p-5 md:p-6">
-            <div className="mb-3 flex items-center justify-between">
-              <span className="text-[13px] font-semibold text-ink">최근 기록</span>
-              <Link href="/growth" className="inline-flex items-center gap-1 text-[11px] font-medium text-accent">
-                모두 보기 <Icon name="arrow-right" size={11} color="#D77B50" />
-              </Link>
-            </div>
-            {[...records]
-              .slice(-4)
-              .reverse()
-              .map((r, i, arr) => {
-                const idx = records.indexOf(r);
-                const earlier = records[idx - 1];
-                const dh = earlier ? (r.height - earlier.height).toFixed(1) : "0.0";
-                return (
-                  <div
-                    key={r.date}
-                    className={`flex items-center gap-3 py-2.5 ${i > 0 ? "border-t border-line" : ""}`}
-                  >
-                    <div className="ko-num w-14 font-mono text-[11px] text-ink-mute">
-                      {shortDate(r.date)}
-                    </div>
-                    <div className="flex flex-1 gap-3.5">
-                      <span className="ko-num text-[13px] font-medium text-ink">{r.height} cm</span>
-                      <span className="ko-num text-[13px] text-ink-soft">{r.weight} kg</span>
-                    </div>
-                    <span className="ko-num text-[11px] font-semibold text-good">
-                      {Number(dh) >= 0 ? "+" : ""}
-                      {dh}
-                    </span>
-                  </div>
-                );
-              })}
-          </div>
-        </section>
-
-        {/* Bottom CTAs */}
-        <section className="mt-3 grid gap-3 md:mt-4 md:grid-cols-12 md:gap-4">
-          <Link
-            href="/ai"
-            className="md:col-span-7 group flex items-center gap-3.5 rounded-[22px] bg-ink p-4 text-white md:p-6"
-          >
-            <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-white/10">
-              <Icon name="sparkle" size={16} color="#D77B50" strokeWidth={1.8} />
-            </div>
-            <div className="flex-1">
-              <div className="text-[13px] font-semibold md:text-[14px]">검진지 · 접종표 인식</div>
-              <div className="text-[11px] text-white/60 md:text-[12px]">
-                사진만 올리면 AI가 항목을 자동 입력해드려요
-              </div>
-            </div>
-            <Icon name="chevron-right" size={16} color="rgba(255,255,255,0.7)" />
-          </Link>
-
-          {upcoming && (
-            <Link
-              href="/schedule"
-              className="md:col-span-5 flex items-center gap-3 rounded-[22px] border border-line bg-warn-soft p-4 md:p-5"
-            >
-              <div className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-warn">
-                <Icon name="syringe" size={16} color="#fff" />
-              </div>
-              <div className="flex-1">
-                <div className="text-[11px] tracking-[0.5px] text-ink-soft">다가오는 일정</div>
-                <div className="mt-0.5 text-[13px] font-semibold text-ink">
-                  {upcoming.name} {upcoming.round} · {shortDate(upcoming.dueDate)}
-                </div>
-              </div>
-              <Icon name="chevron-right" size={16} color="#8B8377" />
-            </Link>
-          )}
-        </section>
-      </PageWrap>
-      <BottomNav />
-    </>
-  );
-}
-
-function StatCard({
-  label, value, unit, delta, sub, color, tone = "good",
-}: {
-  label: string; value: string; unit: string; delta?: string;
-  sub: string; color: string; tone?: "good" | "accent" | "neutral";
-}) {
-  return (
-    <div className="rounded-[18px] border border-line bg-card px-4 py-4 md:px-5 md:py-5">
-      <div className="mb-1.5 text-[11px] text-ink-mute">{label}</div>
-      <div className="flex items-baseline gap-1">
-        <span className="ko-num font-serif text-[28px] font-medium text-ink md:text-[32px]">{value}</span>
-        <span className="text-[12px] text-ink-mute">{unit}</span>
+        <button onClick={() => void logout()} className="rounded-lg border border-line px-3 py-2 text-xs">로그아웃</button>
       </div>
-      <div className="mt-1.5 flex items-center gap-1 text-[11px] font-semibold" style={{ color }}>
-        {delta && (
-          <>
-            {tone === "good" && <Icon name="arrow-up" size={11} color={color} />}
-            {delta}
-            {unit && tone === "good" ? unit : ""}
-            <span className="ml-1 font-normal text-ink-mute">{sub}</span>
-          </>
-        )}
-        {!delta && <span className="font-normal text-ink-mute">{sub}</span>}
-      </div>
-    </div>
+
+      <form onSubmit={saveRecord} className="rounded-2xl border border-line bg-card p-4 shadow-soft">
+        <label className="mb-1 block text-xs text-ink-mute">키(cm)</label>
+        <input value={height} onChange={(e) => setHeight(e.target.value)} type="number" step="0.1" required className="mb-3 w-full rounded-lg border border-line px-3 py-2" />
+        <label className="mb-1 block text-xs text-ink-mute">몸무게(kg)</label>
+        <input value={weight} onChange={(e) => setWeight(e.target.value)} type="number" step="0.1" required className="mb-4 w-full rounded-lg border border-line px-3 py-2" />
+        <button disabled={saving} className="w-full rounded-lg bg-ink py-2 text-sm font-semibold text-white">{saving ? "저장 중..." : "저장"}</button>
+      </form>
+
+      <section className="mt-4 space-y-2">
+        {records.map((r) => (
+          <div key={r.id} className="rounded-xl border border-line bg-card px-4 py-3 text-sm">
+            <div>{r.date}</div>
+            <div className="text-ink-mute">키 {r.height}cm · 몸무게 {r.weight}kg</div>
+          </div>
+        ))}
+      </section>
+    </main>
   );
 }
