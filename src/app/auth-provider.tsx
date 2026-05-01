@@ -49,37 +49,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    let ignore = false;
+
+    const finishLoading = () => {
+      if (!ignore) setIsLoading(false);
+    };
+
     void getRedirectResult(auth)
       .then(async (result) => {
         if (!result?.user) return;
         const mapped = mapFirebaseUser(result.user);
         await upsertUser(mapped);
-        setUser(mapped);
+        if (!ignore) setUser(mapped);
       })
       .catch((error) => {
         console.error("Google redirect login failed", error);
-      });
+      })
+      .finally(finishLoading);
 
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!firebaseUser) {
-        setUser(null);
-        setIsLoading(false);
+        if (!ignore) setUser(null);
+        finishLoading();
         return;
       }
 
       const mapped = mapFirebaseUser(firebaseUser);
-      setUser(mapped);
+      if (!ignore) setUser(mapped);
 
       try {
         await upsertUser(mapped);
       } catch (error) {
         console.error("Failed to save user profile", error);
       } finally {
-        setIsLoading(false);
+        finishLoading();
       }
     });
 
-    return () => unsub();
+    return () => {
+      ignore = true;
+      unsub();
+    };
   }, []);
 
   const loginWithGoogle = async () => {
