@@ -1,79 +1,112 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
+import {
+  User,
+  getRedirectResult,
+  onAuthStateChanged,
+  signInWithRedirect,
+  signOut,
+} from "firebase/auth";
+import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import { auth, db, provider } from "@/lib/firebase";
 
 export type AuthUser = { id: string; email: string; name: string };
 
 type AuthCtx = {
   user: AuthUser | null;
   isLoading: boolean;
-  login: (email: string, password: string) => { ok: boolean; error?: string };
-  signup: (name: string, email: string, password: string) => { ok: boolean; error?: string };
-  logout: () => void;
+  loginWithGoogle: () => Promise<{ ok: boolean; error?: string }>;
+  logout: () => Promise<void>;
 };
-
-type StoredUser = AuthUser & { password: string };
-
-const USERS_KEY = "ak-users";
-const SESSION_KEY = "ak-session";
-
-function genId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-}
 
 const Ctx = createContext<AuthCtx>({
   user: null,
   isLoading: true,
-  login: () => ({ ok: false }),
-  signup: () => ({ ok: false }),
-  logout: () => {},
+  loginWithGoogle: async () => ({ ok: false }),
+  logout: async () => {},
 });
+
+function mapFirebaseUser(u: User): AuthUser {
+  return { id: u.uid, email: u.email ?? "", name: u.displayName ?? "보호자" };
+}
+
+async function upsertUser(user: AuthUser) {
+  const ref = doc(db, "users", user.id);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    await setDoc(ref, {
+      uid: user.id,
+      email: user.email,
+      name: user.name,
+      createdAt: serverTimestamp(),
+    });
+  }
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    try {
-      const s = localStorage.getItem(SESSION_KEY);
-      if (s) setUser(JSON.parse(s));
-    } catch {}
-    setIsLoading(false);
+    let ignore = false;
+
+    const finishLoading = () => {
+      if (!ignore) setIsLoading(false);
+    };
+
+    void getRedirectResult(auth)
+      .then(async (result) => {
+        if (!result?.user) return;
+        const mapped = mapFirebaseUser(result.user);
+        await upsertUser(mapped);
+        if (!ignore) setUser(mapped);
+      })
+      .catch((error) => {
+        console.error("Google redirect login failed", error);
+      })
+      .finally(finishLoading);
+
+    const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (!firebaseUser) {
+        if (!ignore) setUser(null);
+        finishLoading();
+        return;
+      }
+
+      const mapped = mapFirebaseUser(firebaseUser);
+      if (!ignore) setUser(mapped);
+
+      try {
+        await upsertUser(mapped);
+      } catch (error) {
+        console.error("Failed to save user profile", error);
+      } finally {
+        finishLoading();
+      }
+    });
+
+    return () => {
+      ignore = true;
+      unsub();
+    };
   }, []);
 
-  const getUsers = (): StoredUser[] => {
-    try { return JSON.parse(localStorage.getItem(USERS_KEY) ?? "[]"); } catch { return []; }
+  const loginWithGoogle = async () => {
+    try {
+      await signInWithRedirect(auth, provider);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: (e as Error).message };
+    }
   };
 
-  const login = (email: string, password: string): { ok: boolean; error?: string } => {
-    const found = getUsers().find(
-      (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
-    );
-    if (!found) return { ok: false, error: "이메일 또는 비밀번호가 올바르지 않아요." };
-    const u: AuthUser = { id: found.id, email: found.email, name: found.name };
-    setUser(u);
-    localStorage.setItem(SESSION_KEY, JSON.stringify(u));
-    return { ok: true };
-  };
-
-  const signup = (name: string, email: string, password: string): { ok: boolean; error?: string } => {
-    const users = getUsers();
-    if (users.find((u) => u.email.toLowerCase() === email.toLowerCase()))
-      return { ok: false, error: "이미 사용 중인 이메일이에요." };
-    const newUser: StoredUser = { id: genId(), email, name, password };
-    localStorage.setItem(USERS_KEY, JSON.stringify([...users, newUser]));
-    const u: AuthUser = { id: newUser.id, email: newUser.email, name: newUser.name };
-    setUser(u);
-    localStorage.setItem(SESSION_KEY, JSON.stringify(u));
-    return { ok: true };
-  };
-
-  const logout = () => {
+  const logout = async () => {
+    await signOut(auth);
     setUser(null);
-    localStorage.removeItem(SESSION_KEY);
   };
 
-  return <Ctx.Provider value={{ user, isLoading, login, signup, logout }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ user, isLoading, loginWithGoogle, logout }}>{children}</Ctx.Provider>;
 }
 
 export const useAuth = () => useContext(Ctx);
