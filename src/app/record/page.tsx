@@ -2,24 +2,42 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { BottomNav, MobileTopBar, PageWrap, TopBar } from "@/components/AppShell";
 import { Icon } from "@/components/Icon";
-import { CHILD, GROWTH_RECORDS, bmi, bmiCategory, diff, formatDate } from "@/lib/data";
+import { CHILD, bmi, bmiCategory, diff, formatDate } from "@/lib/data";
+import { useRecords } from "@/app/providers";
 
 type Field = "height" | "weight";
 
 export default function RecordPage() {
-  const last = GROWTH_RECORDS[GROWTH_RECORDS.length - 1];
+  const { records, addRecord } = useRecords();
+  const router = useRouter();
+  const last = records[records.length - 1];
   const [height, setHeight] = useState<string>(last.height.toFixed(1));
   const [weight, setWeight] = useState<string>(last.weight.toFixed(1));
   const [active, setActive] = useState<Field>("height");
   const [note, setNote] = useState("");
 
+  const todayStr = useMemo(() => {
+    const d = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }, []);
+
   const today = useMemo(() => {
-    const d = new Date(2026, 3, 30);
+    const d = new Date();
     const days = ["일", "월", "화", "수", "목", "금", "토"];
     return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()} (${days[d.getDay()]})`;
   }, []);
+
+  const save = () => {
+    const h = Number(height);
+    const w = Number(weight);
+    if (!h || !w) return;
+    addRecord({ date: todayStr, height: h, weight: w, note: note || undefined });
+    router.push("/");
+  };
 
   const press = (key: string) => {
     const cur = active === "height" ? height : weight;
@@ -47,7 +65,7 @@ export default function RecordPage() {
   return (
     <>
       <TopBar />
-      <MobileTopBar back title="새 기록" rightLabel="저장" />
+      <MobileTopBar back title="새 기록" rightLabel="저장" onRight={save} />
       <PageWrap>
         {/* Desktop title row */}
         <div className="hidden md:flex items-end justify-between pt-8 pb-6">
@@ -65,7 +83,10 @@ export default function RecordPage() {
             >
               취소
             </Link>
-            <button className="inline-flex items-center gap-2 rounded-[12px] bg-ink px-5 py-3 text-[13px] font-semibold text-white">
+            <button
+              onClick={save}
+              className="inline-flex items-center gap-2 rounded-[12px] bg-ink px-5 py-3 text-[13px] font-semibold text-white"
+            >
               저장하기 <Icon name="check" size={14} color="#fff" strokeWidth={2.4} />
             </button>
           </div>

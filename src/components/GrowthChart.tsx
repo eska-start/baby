@@ -1,16 +1,19 @@
 "use client";
 
-import { GROWTH_RECORDS } from "@/lib/data";
+import { GrowthRecord } from "@/lib/data";
+import { useRecords } from "@/app/providers";
 
 type Props = {
   metric?: "height" | "weight";
   height?: number;
   showAxis?: boolean;
   showAverage?: boolean;
+  records?: GrowthRecord[];
 };
 
-export function GrowthChart({ metric = "height", height = 280, showAxis = true, showAverage = true }: Props) {
-  const data = GROWTH_RECORDS;
+export function GrowthChart({ metric = "height", height = 280, showAxis = true, showAverage = true, records: recordsProp }: Props) {
+  const { records: ctxRecords } = useRecords();
+  const data = recordsProp ?? ctxRecords;
   const values = data.map((r) => (metric === "height" ? r.height : r.weight));
   const minV = Math.min(...values) - (metric === "height" ? 1.5 : 0.6);
   const maxV = Math.max(...values) + (metric === "height" ? 1.5 : 0.6);

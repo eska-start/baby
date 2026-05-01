@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import { BottomNav, MobileTopBar, PageWrap, TopBar } from "@/components/AppShell";
 import { Icon } from "@/components/Icon";
 import { GrowthChart } from "@/components/GrowthChart";
-import { GROWTH_RECORDS, bmi, formatDate, shortDate } from "@/lib/data";
+import { bmi, formatDate, shortDate } from "@/lib/data";
+import { useRecords } from "@/app/providers";
 
 const PERIODS = ["주간", "월간", "연간"] as const;
 type Period = (typeof PERIODS)[number];
@@ -17,6 +18,7 @@ type MetricKey = (typeof METRICS)[number]["key"];
 export default function GrowthPage() {
   const [period, setPeriod] = useState<Period>("월간");
   const [metric, setMetric] = useState<MetricKey>("height");
+  const { records: GROWTH_RECORDS } = useRecords();
 
   const last = GROWTH_RECORDS[GROWTH_RECORDS.length - 1];
   const prev = GROWTH_RECORDS[GROWTH_RECORDS.length - 2];

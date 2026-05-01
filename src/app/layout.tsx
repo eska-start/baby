@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { RecordsProvider } from "./providers";
 
 export const metadata: Metadata = {
   title: "아이결 · 아이의 성장을 따뜻하게",
@@ -20,7 +21,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ko">
-      <body className="bg-bg text-ink min-h-screen">{children}</body>
+      <body className="bg-bg text-ink min-h-screen">
+        <RecordsProvider>{children}</RecordsProvider>
+      </body>
     </html>
   );
 }

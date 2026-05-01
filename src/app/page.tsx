@@ -1,22 +1,18 @@
+"use client";
+
 import Link from "next/link";
 import { BottomNav, MobileTopBar, PageWrap, TopBar } from "@/components/AppShell";
 import { Icon } from "@/components/Icon";
 import { BmiGauge } from "@/components/BmiGauge";
 import { GrowthChart } from "@/components/GrowthChart";
-import {
-  CHILD,
-  GROWTH_RECORDS,
-  VACCINES,
-  bmi,
-  bmiCategory,
-  diff,
-  shortDate,
-} from "@/lib/data";
+import { CHILD, VACCINES, bmi, bmiCategory, diff, shortDate } from "@/lib/data";
+import { useRecords } from "./providers";
 
 export default function HomePage() {
-  const last = GROWTH_RECORDS[GROWTH_RECORDS.length - 1];
-  const prev = GROWTH_RECORDS[GROWTH_RECORDS.length - 2];
-  const monthAgo = GROWTH_RECORDS[GROWTH_RECORDS.length - 5] ?? GROWTH_RECORDS[0];
+  const { records } = useRecords();
+  const last = records[records.length - 1];
+  const prev = records[records.length - 2];
+  const monthAgo = records[records.length - 5] ?? records[0];
   const bmiVal = bmi(last.height, last.weight);
   const cat = bmiCategory(bmiVal);
   const upcoming = VACCINES.filter((v) => v.status === "upcoming")
@@ -125,7 +121,7 @@ export default function HomePage() {
             />
             <StatCard
               label="기록 일수"
-              value={String(GROWTH_RECORDS.length)}
+              value={String(records.length)}
               unit="회"
               sub="이번 시즌 누적"
               color="#4A4239"
@@ -154,7 +150,7 @@ export default function HomePage() {
             </div>
             <GrowthChart metric="height" height={220} />
             <div className="mt-2 flex justify-between px-2 text-[10px] text-ink-mute">
-              {GROWTH_RECORDS.map((r) => (
+              {records.map((r) => (
                 <span key={r.date}>{shortDate(r.date)}</span>
               ))}
             </div>
@@ -168,12 +164,12 @@ export default function HomePage() {
                 모두 보기 <Icon name="arrow-right" size={11} color="#D77B50" />
               </Link>
             </div>
-            {[...GROWTH_RECORDS]
+            {[...records]
               .slice(-4)
               .reverse()
               .map((r, i, arr) => {
-                const idx = GROWTH_RECORDS.indexOf(r);
-                const earlier = GROWTH_RECORDS[idx - 1];
+                const idx = records.indexOf(r);
+                const earlier = records[idx - 1];
                 const dh = earlier ? (r.height - earlier.height).toFixed(1) : "0.0";
                 return (
                   <div
