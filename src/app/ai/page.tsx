@@ -13,13 +13,13 @@ import { db } from "@/lib/firebase";
 import { BottomNav, MobileTopBar, PageWrap, TopBar } from "@/components/AppShell";
 import { Icon } from "@/components/Icon";
 import { useRecords } from "@/app/providers";
-import { useRouter } from "next/navigation";
 
 type DocType = "checkup" | "vaccine";
 
 type AnalysisResult = {
   type: DocType;
   extracted: Record<string, unknown>;
+  raw?: string;
 };
 
 type AnalysisRecord = {
@@ -31,9 +31,27 @@ type AnalysisRecord = {
   appliedToRecord: boolean;
 };
 
+function hasValue(value: unknown) {
+  return value !== null && value !== undefined && String(value).trim() !== "";
+}
+
+function toNumber(value: unknown) {
+  if (!hasValue(value)) return null;
+  const n = Number(String(value).replace(/[^0-9.]/g, ""));
+  return Number.isFinite(n) ? n : null;
+}
+
+function toDateString(value: unknown) {
+  if (!hasValue(value)) return null;
+  const raw = String(value).trim().replace(/[.\/]/g, "-");
+  const match = raw.match(/(20\d{2}|19\d{2})-?(\d{1,2})-?(\d{1,2})/);
+  if (!match) return raw;
+  const [, y, m, d] = match;
+  return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+}
+
 export default function AIPage() {
   const { activeChild, addRecord } = useRecords();
-  const router = useRouter();
 
   const [tab, setTab] = useState<DocType>("checkup");
   const [file, setFile] = useState<File | null>(null);
@@ -45,24 +63,19 @@ export default function AIPage() {
   const [history, setHistory] = useState<AnalysisRecord[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Load analysis history from Firestore
   useEffect(() => {
     if (!activeChild) return;
-    const q = query(
-      collection(db, "children", activeChild.id, "analyses"),
-      orderBy("createdAt", "desc"),
+    const q = query(collection(db, "children", activeChild.id, "analyses"), orderBy("createdAt", "desc"));
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        setHistory(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<AnalysisRecord, "id">) })));
+      },
+      (err) => {
+        console.error("Failed to load analysis history", err);
+        setError("분석 기록을 불러오지 못했어요. Firestore 권한을 확인해주세요.");
+      },
     );
-    const unsub = onSnapshot(q, (snap) => {
-      setHistory(
-        snap.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as Omit<AnalysisRecord, "id">),
-        })),
-      );
-    }, (err) => {
-      console.error("Failed to load analysis history", err);
-      setError("분석 기록을 불러오지 못했어요. Firestore 권한을 확인해주세요.");
-    });
     return () => unsub();
   }, [activeChild]);
 
@@ -71,12 +84,8 @@ export default function AIPage() {
     setResult(null);
     setSaved(false);
     setError(null);
-    if (f.type.startsWith("image/")) {
-      const url = URL.createObjectURL(f);
-      setPreview(url);
-    } else {
-      setPreview(null);
-    }
+    if (f.type.startsWith("image/")) setPreview(URL.createObjectURL(f));
+    else setPreview(null);
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -96,7 +105,7 @@ export default function AIPage() {
       const res = await fetch("/api/analyze", { method: "POST", body: fd });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "오류");
-      setResult({ type: tab, extracted: data.extracted });
+      setResult({ type: tab, extracted: data.extracted, raw: data.raw });
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -107,29 +116,25 @@ export default function AIPage() {
   const saveResult = async () => {
     if (!result || !activeChild) return;
     setError(null);
+
     const ext = result.extracted;
-    const canApplyToRecord =
-      result.type === "checkup" &&
-      ext["신장"] != null &&
-      ext["체중"] != null &&
-      ext["검진일자"] != null;
+    const date = toDateString(ext["검진일자"]);
+    const height = toNumber(ext["신장"]);
+    const weight = toNumber(ext["체중"]);
+    const canApplyToRecord = result.type === "checkup" && Boolean(date) && height !== null && weight !== null;
 
     try {
       await addDoc(collection(db, "children", activeChild.id, "analyses"), {
         type: result.type,
         fileName: file?.name ?? "unknown",
         extracted: ext,
+        raw: result.raw ?? null,
         createdAt: serverTimestamp(),
         appliedToRecord: canApplyToRecord,
       });
 
       if (canApplyToRecord) {
-        addRecord({
-          date: String(ext["검진일자"]),
-          height: Number(ext["신장"]),
-          weight: Number(ext["체중"]),
-          note: String(ext["검진종류"] ?? "건강검진"),
-        });
+        addRecord({ date: date!, height, weight, note: String(ext["검진종류"] ?? "AI 건강검진 분석") });
       }
 
       setSaved(true);
@@ -147,21 +152,8 @@ export default function AIPage() {
     setError(null);
   };
 
-  const checkupFields: Array<[string, string]> = [
-    ["검진종류", "검진종류"],
-    ["검진일자", "검진일자"],
-    ["신장", "신장"],
-    ["체중", "체중"],
-    ["두위", "두위"],
-    ["판정", "판정"],
-  ];
-  const vaccineFields: Array<[string, string]> = [
-    ["백신명", "백신명"],
-    ["차수", "차수"],
-    ["접종일", "접종일"],
-    ["접종기관", "접종기관"],
-    ["다음접종", "다음접종"],
-  ];
+  const checkupFields: Array<[string, string]> = [["검진종류", "검진종류"], ["검진일자", "검진일자"], ["신장", "신장"], ["체중", "체중"], ["두위", "두위"], ["판정", "판정"]];
+  const vaccineFields: Array<[string, string]> = [["백신명", "백신명"], ["차수", "차수"], ["접종일", "접종일"], ["접종기관", "접종기관"], ["다음접종", "다음접종"]];
   const fields = result?.type === "checkup" ? checkupFields : vaccineFields;
 
   const formatHistoryDate = (r: AnalysisRecord) => {
@@ -174,19 +166,22 @@ export default function AIPage() {
     }
   };
 
+  const canSave = result && Object.values(result.extracted).some(hasValue);
+  const date = toDateString(result?.extracted["검진일자"]);
+  const height = toNumber(result?.extracted["신장"]);
+  const weight = toNumber(result?.extracted["체중"]);
+  const canAutoRecord = result?.type === "checkup" && Boolean(date) && height !== null && weight !== null;
+
   return (
     <>
       <TopBar />
       <MobileTopBar back title="AI 분석" />
       <PageWrap>
-        {/* Header */}
         <div className="hidden md:flex items-end justify-between pt-8 pb-6">
           <div>
             <div className="mb-1 text-[11px] tracking-[0.5px] text-ink-mute">AI VISION</div>
             <h1 className="font-serif text-[30px] font-medium text-ink">건강 문서 자동 인식</h1>
-            <p className="mt-1 text-[13px] text-ink-mute">
-              검진 결과지나 예방접종 기록을 사진으로 찍거나 파일로 올리면 AI가 자동으로 읽어요.
-            </p>
+            <p className="mt-1 text-[13px] text-ink-mute">검진 결과지나 예방접종 기록을 사진으로 찍거나 파일로 올리면 AI가 자동으로 읽어요.</p>
           </div>
         </div>
         <div className="md:hidden px-2 pt-2 mb-4">
@@ -194,14 +189,9 @@ export default function AIPage() {
           <h1 className="font-serif text-[22px] font-medium text-ink">건강 문서 자동 인식</h1>
         </div>
 
-        {/* Doc type tabs */}
         <div className="mb-4 flex gap-1 rounded-[10px] border border-line bg-card p-1 w-fit">
           {(["checkup", "vaccine"] as DocType[]).map((t) => (
-            <button
-              key={t}
-              onClick={() => { setTab(t); resetUpload(); }}
-              className={`inline-flex items-center gap-1.5 rounded-[7px] px-3.5 py-2 text-[12px] transition ${tab === t ? "bg-ink text-white" : "text-ink-soft"}`}
-            >
+            <button key={t} onClick={() => { setTab(t); resetUpload(); }} className={`inline-flex items-center gap-1.5 rounded-[7px] px-3.5 py-2 text-[12px] transition ${tab === t ? "bg-ink text-white" : "text-ink-soft"}`}>
               <Icon name={t === "checkup" ? "heart" : "syringe"} size={13} color={tab === t ? "#fff" : "#8B8377"} />
               {t === "checkup" ? "건강검진 결과지" : "예방접종 기록"}
             </button>
@@ -209,163 +199,57 @@ export default function AIPage() {
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
-          {/* Left: upload / preview */}
           <div className="flex flex-col gap-3">
             {!file ? (
-              <label
-                onDrop={handleDrop}
-                onDragOver={(e) => e.preventDefault()}
-                className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-[18px] border-2 border-dashed border-line-strong bg-bg/60 px-6 py-14 text-center transition hover:bg-bg"
-              >
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent-soft">
-                  <Icon name="upload" size={24} color="#D77B50" />
-                </div>
+              <label onDrop={handleDrop} onDragOver={(e) => e.preventDefault()} className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-[18px] border-2 border-dashed border-line-strong bg-bg/60 px-6 py-14 text-center transition hover:bg-bg">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent-soft"><Icon name="upload" size={24} color="#D77B50" /></div>
                 <div>
                   <div className="text-[14px] font-semibold text-ink">사진 또는 파일 선택</div>
                   <div className="mt-1 text-[12px] text-ink-mute">JPG · PNG · HEIC · PDF · 최대 20MB</div>
                   <div className="mt-1 text-[11px] text-ink-mute">카메라로 찍어서 바로 올릴 수도 있어요</div>
                 </div>
-                <input
-                  ref={inputRef}
-                  type="file"
-                  accept="image/*,.pdf"
-                  capture="environment"
-                  className="hidden"
-                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
-                />
+                <input ref={inputRef} type="file" accept="image/*,.pdf" capture="environment" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
               </label>
             ) : (
               <div className="overflow-hidden rounded-[18px] border border-line bg-card">
-                {preview ? (
-                  <img src={preview} alt="업로드된 문서" className="w-full object-contain max-h-[360px]" />
-                ) : (
-                  <div className="flex h-40 items-center justify-center gap-3 bg-bg">
-                    <Icon name="note" size={28} color="#8B8377" />
-                    <div>
-                      <div className="text-[13px] font-semibold text-ink">{file.name}</div>
-                      <div className="text-[11px] text-ink-mute">PDF 문서</div>
-                    </div>
-                  </div>
+                {preview ? <img src={preview} alt="업로드된 문서" className="w-full object-contain max-h-[360px]" /> : (
+                  <div className="flex h-40 items-center justify-center gap-3 bg-bg"><Icon name="note" size={28} color="#8B8377" /><div><div className="text-[13px] font-semibold text-ink">{file.name}</div><div className="text-[11px] text-ink-mute">PDF 문서</div></div></div>
                 )}
-                <div className="flex items-center justify-between border-t border-line px-4 py-3">
-                  <span className="text-[12px] text-ink-mute truncate max-w-[60%]">{file.name}</span>
-                  <button onClick={resetUpload} className="text-[12px] font-medium text-red-400">제거</button>
-                </div>
+                <div className="flex items-center justify-between border-t border-line px-4 py-3"><span className="text-[12px] text-ink-mute truncate max-w-[60%]">{file.name}</span><button onClick={resetUpload} className="text-[12px] font-medium text-red-400">제거</button></div>
               </div>
             )}
 
-            {file && !result && (
-              <button
-                onClick={analyze}
-                disabled={analyzing}
-                className="w-full rounded-[14px] bg-ink py-3.5 text-[14px] font-semibold text-white disabled:opacity-60"
-              >
-                {analyzing ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                    AI 분석 중...
-                  </span>
-                ) : "AI로 분석하기"}
-              </button>
-            )}
-
-            {error && (
-              <div className="rounded-[12px] bg-red-50 px-4 py-3 text-[13px] text-red-500">{error}</div>
-            )}
+            {file && !result && <button onClick={analyze} disabled={analyzing} className="w-full rounded-[14px] bg-ink py-3.5 text-[14px] font-semibold text-white disabled:opacity-60">{analyzing ? "AI OCR + LLM 분석 중..." : "AI로 분석하기"}</button>}
+            {error && <div className="rounded-[12px] bg-red-50 px-4 py-3 text-[13px] text-red-500">{error}</div>}
           </div>
 
-          {/* Right: extracted results */}
           <div>
             {result ? (
               <div>
                 <div className="mb-1 text-[11px] tracking-[0.5px] text-ink-mute">분석 결과</div>
-                <div className="mb-3 font-serif text-[20px] font-medium text-ink">
-                  {result.type === "checkup" ? "검진 정보를 인식했어요" : "접종 기록을 인식했어요"}
-                </div>
+                <div className="mb-3 font-serif text-[20px] font-medium text-ink">{result.type === "checkup" ? "검진 정보를 인식했어요" : "접종 기록을 인식했어요"}</div>
                 <div className="overflow-hidden rounded-[14px] border border-line bg-card">
                   {fields.map(([label, key], i) => {
                     const val = result.extracted[key];
-                    if (val == null) return null;
-                    return (
-                      <div key={key} className={`flex items-center justify-between px-5 py-3.5 ${i > 0 ? "border-t border-line" : ""}`}>
-                        <div className="text-[12px] text-ink-mute">{label}</div>
-                        <div className="ko-num text-[14px] font-semibold text-ink">
-                          {String(val)}{key === "신장" ? " cm" : key === "체중" ? " kg" : key === "두위" ? " cm" : ""}
-                        </div>
-                      </div>
-                    );
+                    if (!hasValue(val)) return null;
+                    return <div key={key} className={`flex items-center justify-between px-5 py-3.5 ${i > 0 ? "border-t border-line" : ""}`}><div className="text-[12px] text-ink-mute">{label}</div><div className="ko-num text-[14px] font-semibold text-ink">{String(val)}{key === "신장" ? " cm" : key === "체중" ? " kg" : key === "두위" ? " cm" : ""}</div></div>;
                   })}
                 </div>
 
-                {result.type === "checkup" && Boolean(result.extracted["신장"]) && Boolean(result.extracted["체중"]) && (
-                  <div className="mt-3 flex gap-2 rounded-[12px] bg-accent-soft px-4 py-3">
-                    <Icon name="check" size={14} color="#D77B50" strokeWidth={2.4} />
-                    <div className="text-[12px] text-ink">키 · 몸무게를 성장 기록에 자동으로 추가할게요</div>
-                  </div>
-                )}
+                {canAutoRecord ? <div className="mt-3 flex gap-2 rounded-[12px] bg-accent-soft px-4 py-3"><Icon name="check" size={14} color="#D77B50" strokeWidth={2.4} /><div className="text-[12px] text-ink">저장하면 {date} 기록으로 키 {height}cm · 몸무게 {weight}kg가 자동 반영돼요</div></div> : <div className="mt-3 rounded-[12px] bg-red-50 px-4 py-3 text-[12px] text-red-500">자동 기록에는 검진일자, 신장, 체중이 모두 필요해요.</div>}
 
                 <div className="mt-4 flex gap-2.5">
-                  <button onClick={resetUpload} className="flex-1 rounded-[12px] border border-line bg-card py-3 text-[13px] font-medium text-ink">
-                    다시 분석
-                  </button>
-                  {saved ? (
-                    <div className="flex-[2] inline-flex items-center justify-center gap-2 rounded-[12px] bg-good py-3 text-[13px] font-semibold text-white">
-                      <Icon name="check" size={14} color="#fff" strokeWidth={2.4} /> 저장됐어요
-                    </div>
-                  ) : (
-                    <button onClick={saveResult} className="flex-[2] inline-flex items-center justify-center gap-2 rounded-[12px] bg-ink py-3 text-[13px] font-semibold text-white">
-                      저장하기 <Icon name="arrow-right" size={14} color="#fff" />
-                    </button>
-                  )}
+                  <button onClick={resetUpload} className="flex-1 rounded-[12px] border border-line bg-card py-3 text-[13px] font-medium text-ink">다시 분석</button>
+                  {saved ? <div className="flex-[2] inline-flex items-center justify-center gap-2 rounded-[12px] bg-good py-3 text-[13px] font-semibold text-white"><Icon name="check" size={14} color="#fff" strokeWidth={2.4} /> 저장됐어요</div> : <button onClick={saveResult} disabled={!canSave} className="flex-[2] inline-flex items-center justify-center gap-2 rounded-[12px] bg-ink py-3 text-[13px] font-semibold text-white disabled:opacity-40">저장하고 자동 반영 <Icon name="arrow-right" size={14} color="#fff" /></button>}
                 </div>
               </div>
             ) : (
-              <div className="rounded-[18px] border border-line bg-card p-6 text-center text-[13px] text-ink-mute">
-                <Icon name="sparkle" size={28} color="#D77B50" />
-                <div className="mt-3 font-semibold text-ink">왼쪽에서 파일을 선택하면</div>
-                <div className="mt-1 text-ink-mute">AI가 내용을 자동으로 읽어드려요</div>
-              </div>
+              <div className="rounded-[18px] border border-line bg-card p-6 text-center text-[13px] text-ink-mute"><Icon name="sparkle" size={28} color="#D77B50" /><div className="mt-3 font-semibold text-ink">왼쪽에서 파일을 선택하면</div><div className="mt-1 text-ink-mute">AI가 OCR로 내용을 읽고 기록까지 연결해요</div></div>
             )}
           </div>
         </div>
 
-        {/* Analysis history */}
-        {history.length > 0 && (
-          <section className="mt-8">
-            <div className="mb-3 flex items-center justify-between">
-              <div className="text-[13px] font-semibold text-ink">분석 기록 · {history.length}회</div>
-            </div>
-            <div className="overflow-hidden rounded-[14px] border border-line bg-card">
-              <div className="hidden md:grid grid-cols-[auto_1fr_1fr_auto] border-b border-line px-5 py-2.5 text-[11px] font-medium tracking-[0.4px] text-ink-mute">
-                <span className="w-8">#</span>
-                <span>종류</span>
-                <span>주요 내용</span>
-                <span>날짜</span>
-              </div>
-              {history.map((h, i) => {
-                const mainInfo = h.type === "checkup"
-                  ? [h.extracted["검진종류"], h.extracted["신장"] ? `${h.extracted["신장"]}cm` : null, h.extracted["체중"] ? `${h.extracted["체중"]}kg` : null].filter(Boolean).join(" · ")
-                  : [h.extracted["백신명"], h.extracted["차수"]].filter(Boolean).join(" ");
-                return (
-                  <div key={h.id} className={`grid grid-cols-[auto_1fr] md:grid-cols-[auto_1fr_1fr_auto] gap-2 px-5 py-3.5 md:items-center ${i > 0 ? "border-t border-line" : ""}`}>
-                    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-bg text-[11px] font-semibold text-ink-mute">
-                      {history.length - i}
-                    </div>
-                    <div className="md:contents">
-                      <div className="flex items-center gap-1.5">
-                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${h.type === "checkup" ? "bg-good-soft text-good" : "bg-accent-soft text-accent"}`}>
-                          {h.type === "checkup" ? "건강검진" : "예방접종"}
-                        </span>
-                      </div>
-                      <div className="text-[13px] text-ink truncate">{mainInfo || "—"}</div>
-                      <div className="text-[11px] text-ink-mute">{formatHistoryDate(h)}</div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        )}
+        {history.length > 0 && <section className="mt-8"><div className="mb-3 flex items-center justify-between"><div className="text-[13px] font-semibold text-ink">분석 기록 · {history.length}회</div></div><div className="overflow-hidden rounded-[14px] border border-line bg-card">{history.map((h, i) => { const mainInfo = h.type === "checkup" ? [h.extracted["검진종류"], h.extracted["신장"] ? `${h.extracted["신장"]}cm` : null, h.extracted["체중"] ? `${h.extracted["체중"]}kg` : null].filter(Boolean).join(" · ") : [h.extracted["백신명"], h.extracted["차수"]].filter(Boolean).join(" "); return <div key={h.id} className={`grid grid-cols-[auto_1fr] md:grid-cols-[auto_1fr_1fr_auto] gap-2 px-5 py-3.5 md:items-center ${i > 0 ? "border-t border-line" : ""}`}><div className="flex h-7 w-7 items-center justify-center rounded-full bg-bg text-[11px] font-semibold text-ink-mute">{history.length - i}</div><div className="md:contents"><div><span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${h.type === "checkup" ? "bg-good-soft text-good" : "bg-accent-soft text-accent"}`}>{h.type === "checkup" ? "건강검진" : "예방접종"}</span></div><div className="text-[13px] text-ink truncate">{mainInfo || "—"}</div><div className="text-[11px] text-ink-mute">{formatHistoryDate(h)}</div></div></div>; })}</div></section>}
       </PageWrap>
       <BottomNav />
     </>
