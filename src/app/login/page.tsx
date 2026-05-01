@@ -26,6 +26,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleScriptLoaded, setGoogleScriptLoaded] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,7 +42,17 @@ export default function LoginPage() {
 
   const handleGoogleLogin = () => {
     const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-    if (!clientId || !window.google) return setError("구글 로그인 설정이 완료되지 않았어요.");
+
+    if (!clientId) {
+      setError("NEXT_PUBLIC_GOOGLE_CLIENT_ID 환경변수가 없어 구글 로그인을 사용할 수 없어요.");
+      return;
+    }
+
+    if (!googleScriptLoaded || !window.google) {
+      setError("구글 로그인 스크립트 로딩이 아직 완료되지 않았어요. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+
     window.google.accounts.id.initialize({
       client_id: clientId,
       callback: async ({ credential }) => {
@@ -55,7 +66,7 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-bg p-4">
-      <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" />
+      <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" onLoad={() => setGoogleScriptLoaded(true)} />
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
           <div className="font-serif text-[36px] font-semibold text-ink">아이키</div>
@@ -69,7 +80,7 @@ export default function LoginPage() {
             {error && <div className="rounded-[10px] bg-red-50 px-4 py-2.5 text-[12px] text-red-500">{error}</div>}
             <button type="submit" disabled={loading} className="w-full rounded-[12px] bg-ink py-3.5 text-[14px] font-semibold text-white">{loading ? "로그인 중..." : "로그인"}</button>
           </form>
-          <button type="button" onClick={handleGoogleLogin} className="mt-3 w-full rounded-[12px] border border-line bg-white py-3 text-[14px] font-semibold text-ink">Google로 로그인</button>
+          <button type="button" onClick={handleGoogleLogin} disabled={!googleScriptLoaded} className="mt-3 w-full rounded-[12px] border border-line bg-white py-3 text-[14px] font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60">Google로 로그인</button>
         </div>
         <div className="mt-5 text-center text-[13px] text-ink-mute">계정이 없으신가요? <Link href="/signup" className="font-semibold text-accent">회원가입</Link></div>
       </div>
