@@ -284,7 +284,7 @@ export default function AIPage() {
                   })}
                 </div>
 
-                {result.type === "checkup" && result.extracted["신장"] && result.extracted["체중"] && (
+                {result.type === "checkup" && Boolean(result.extracted["신장"]) && Boolean(result.extracted["체중"]) && (
                   <div className="mt-3 flex gap-2 rounded-[12px] bg-accent-soft px-4 py-3">
                     <Icon name="check" size={14} color="#D77B50" strokeWidth={2.4} />
                     <div className="text-[12px] text-ink">키 · 몸무게를 성장 기록에 자동으로 추가할게요</div>
