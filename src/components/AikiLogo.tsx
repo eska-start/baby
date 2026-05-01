@@ -13,9 +13,9 @@ export function AikiLogo({
   return (
     <div className={`flex flex-col items-center ${className}`}>
       <img
-        src="/aiki-logo.png"
+        src="/aiki-logo.svg"
         alt="아이키 로고"
-        className={`${markSize} rounded-full object-contain shadow-[0_18px_38px_rgba(138,124,102,0.14)]`}
+        className={`${markSize} object-contain`}
       />
       {showText && (
         <div className="mt-5 text-center">
