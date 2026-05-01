@@ -5,24 +5,7 @@ export type GrowthRecord = {
   note?: string;
 };
 
-export const CHILD = {
-  name: "이서율",
-  birth: "2021-01-15",
-  gender: "여" as const,
-  ageLabel: "5세 3개월",
-  emojiBg: "#F4B393",
-};
-
-export const GROWTH_RECORDS: GrowthRecord[] = [
-  { date: "2025-10-04", height: 108.2, weight: 17.4, note: "가을 검진 직후" },
-  { date: "2025-11-08", height: 109.0, weight: 17.7 },
-  { date: "2025-12-06", height: 109.6, weight: 18.1, note: "감기 회복 후" },
-  { date: "2026-01-10", height: 110.4, weight: 18.4 },
-  { date: "2026-02-14", height: 111.0, weight: 18.7, note: "이유식 졸업" },
-  { date: "2026-03-15", height: 111.5, weight: 18.9 },
-  { date: "2026-04-01", height: 111.8, weight: 18.9 },
-  { date: "2026-04-30", height: 112.4, weight: 19.2, note: "봄소풍 전 검진" },
-];
+export const GROWTH_RECORDS: GrowthRecord[] = [];
 
 export type Vaccine = {
   name: string;
