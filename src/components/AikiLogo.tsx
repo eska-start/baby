@@ -8,19 +8,19 @@ export function AikiLogo({
   className?: string;
 }) {
   const markSize = size === "lg" ? "h-[118px] w-[118px]" : size === "sm" ? "h-14 w-14" : "h-20 w-20";
-  const svgSize = size === "lg" ? "h-[88px] w-[88px]" : size === "sm" ? "h-11 w-11" : "h-16 w-16";
+  const svgSize = size === "lg" ? "h-[84px] w-[84px]" : size === "sm" ? "h-10 w-10" : "h-14 w-14";
   const textSize = size === "lg" ? "text-[54px]" : size === "sm" ? "text-[28px]" : "text-[40px]";
 
   return (
     <div className={`flex flex-col items-center ${className}`}>
       <div className={`relative flex ${markSize} items-center justify-center overflow-hidden rounded-full bg-[#F8ECDD] shadow-[0_18px_38px_rgba(138,124,102,0.14)]`}>
-        <div className="absolute bottom-0 h-[38%] w-full rounded-t-[55%] bg-[#EADCC8]" />
+        <div className="absolute bottom-0 h-[36%] w-full rounded-t-[55%] bg-[#EADCC8]" />
         <svg viewBox="0 0 120 120" className={`${svgSize} relative block`} aria-hidden="true" shapeRendering="geometricPrecision">
-          <circle cx="60" cy="20" r="5.2" fill="#EFA977" />
-          <path d="M60 94C60 78 60 64 60 50" fill="none" stroke="#7E674C" strokeWidth="7" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-          <path d="M57.5 52C48 38 37 31 24 30C24 45 35 57 55.5 58.5C57 57 58 55 57.5 52Z" fill="#A9B87D" />
-          <path d="M62.5 52C72 38 83 31 96 30C96 45 85 57 64.5 58.5C63 57 62 55 62.5 52Z" fill="#91A86F" />
-          <path d="M60 65C51 65 44 68 39 74C47 78 55 78 60 72C65 78 73 78 81 74C76 68 69 65 60 65Z" fill="#D8CFA7" />
+          <circle cx="60" cy="22" r="6" fill="#EFA977" />
+          <rect x="56" y="56" width="8" height="40" rx="4" fill="#7E674C" />
+          <ellipse cx="43" cy="49" rx="18" ry="29" fill="#A9B87D" transform="rotate(-42 43 49)" />
+          <ellipse cx="77" cy="49" rx="18" ry="29" fill="#91A86F" transform="rotate(42 77 49)" />
+          <ellipse cx="60" cy="82" rx="24" ry="9" fill="#D8CFA7" />
         </svg>
       </div>
       {showText && (
