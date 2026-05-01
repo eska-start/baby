@@ -1,16 +1,19 @@
 "use client";
 
-import { GROWTH_RECORDS } from "@/lib/data";
+import { GrowthRecord } from "@/lib/data";
+import { useRecords } from "@/app/providers";
 
 type Props = {
   metric?: "height" | "weight";
   height?: number;
   showAxis?: boolean;
   showAverage?: boolean;
+  records?: GrowthRecord[];
 };
 
-export function GrowthChart({ metric = "height", height = 280, showAxis = true, showAverage = true }: Props) {
-  const data = GROWTH_RECORDS;
+export function GrowthChart({ metric = "height", height = 280, showAxis = true, showAverage = true, records: recordsProp }: Props) {
+  const { records: ctxRecords } = useRecords();
+  const data = recordsProp ?? ctxRecords;
   const values = data.map((r) => (metric === "height" ? r.height : r.weight));
   const minV = Math.min(...values) - (metric === "height" ? 1.5 : 0.6);
   const maxV = Math.max(...values) + (metric === "height" ? 1.5 : 0.6);
@@ -28,7 +31,6 @@ export function GrowthChart({ metric = "height", height = 280, showAxis = true, 
   const path = data
     .map((r, i) => `${i === 0 ? "M" : "L"} ${xFor(i)} ${yFor(metric === "height" ? r.height : r.weight)}`)
     .join(" ");
-  // Mock P50 reference using the first/last reading drift.
   const p50 = data
     .map((_, i) => {
       const start = values[0] + (metric === "height" ? -0.3 : 0.1);
@@ -103,7 +105,6 @@ export function GrowthChart({ metric = "height", height = 280, showAxis = true, 
           </g>
         );
       })}
-      {/* last value label */}
       <g transform={`translate(${lastX - 38}, ${Math.max(8, lastY - 30)})`}>
         <rect width="76" height="22" rx="11" fill="#1F1A14" />
         <text
