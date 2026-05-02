@@ -61,7 +61,8 @@ export default function AIPage() {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [history, setHistory] = useState<AnalysisRecord[]>([]);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!activeChild) return;
@@ -201,15 +202,40 @@ export default function AIPage() {
         <div className="grid gap-4 md:grid-cols-2">
           <div className="flex flex-col gap-3">
             {!file ? (
-              <label onDrop={handleDrop} onDragOver={(e) => e.preventDefault()} className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-[18px] border-2 border-dashed border-line-strong bg-bg/60 px-6 py-14 text-center transition hover:bg-bg">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-accent-soft"><Icon name="upload" size={24} color="#D77B50" /></div>
-                <div>
-                  <div className="text-[14px] font-semibold text-ink">사진 또는 파일 선택</div>
-                  <div className="mt-1 text-[12px] text-ink-mute">JPG · PNG · HEIC · PDF · 최대 20MB</div>
-                  <div className="mt-1 text-[11px] text-ink-mute">카메라로 찍어서 바로 올릴 수도 있어요</div>
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => cameraRef.current?.click()}
+                    className="flex flex-col items-center gap-2 rounded-[18px] border-2 border-dashed border-line-strong bg-bg py-6 transition active:scale-[0.98]"
+                  >
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-accent-soft">
+                      <Icon name="camera" size={20} color="#D77B50" />
+                    </div>
+                    <span className="text-[13px] font-semibold text-ink">카메라 촬영</span>
+                    <span className="text-[11px] text-ink-mute">지금 바로 찍기</span>
+                  </button>
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    className="flex flex-col items-center gap-2 rounded-[18px] border-2 border-dashed border-line-strong bg-bg py-6 transition active:scale-[0.98]"
+                  >
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full border border-line bg-bg">
+                      <Icon name="upload" size={20} color="#8B8377" />
+                    </div>
+                    <span className="text-[13px] font-semibold text-ink">파일 선택</span>
+                    <span className="text-[11px] text-ink-mute">갤러리 · PDF</span>
+                  </button>
                 </div>
-                <input ref={inputRef} type="file" accept="image/*,.pdf" capture="environment" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
-              </label>
+                <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
+                <input ref={fileRef} type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
+                <label
+                  onDrop={handleDrop}
+                  onDragOver={(e) => e.preventDefault()}
+                  className="flex cursor-pointer flex-col items-center justify-center gap-1 rounded-[14px] border-2 border-dashed border-line bg-transparent py-4 text-center transition hover:bg-bg"
+                >
+                  <span className="text-[12px] text-ink-mute">또는 파일을 여기에 드래그</span>
+                  <span className="text-[10px] text-ink-mute/60">JPG · PNG · HEIC · PDF · 최대 20MB</span>
+                </label>
+              </div>
             ) : (
               <div className="overflow-hidden rounded-[18px] border border-line bg-card">
                 {preview ? <img src={preview} alt="업로드된 문서" className="w-full object-contain max-h-[360px]" /> : (

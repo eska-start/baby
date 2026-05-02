@@ -50,6 +50,11 @@ service cloud.firestore {
         allow read, write: if isMember(childId);
       }
 
+      // AI analysis history
+      match /analyses/{analysisId} {
+        allow read, write: if isMember(childId);
+      }
+
       // Invite log
       match /inviteLog/{logId} {
         allow read, write: if isMember(childId) || request.auth != null;
