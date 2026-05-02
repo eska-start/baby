@@ -67,6 +67,9 @@ export function RecordsProvider({ children: rc }: { children: React.ReactNode })
   const [activeId, setActiveIdState] = useState<string | null>(null);
   const [records, setRecords] = useState<GrowthRecord[]>([]);
   const [vaccines, setVaccines] = useState<Vaccine[]>([]);
+  const [dbError, setDbError] = useState<string | null>(null);
+
+  const showError = (msg: string) => { setDbError(msg); setTimeout(() => setDbError(null), 4000); };
 
   // Only re-subscribe when the user ID actually changes, not on every render where
   // the auth provider creates a new user object with the same ID.
@@ -90,22 +93,27 @@ export function RecordsProvider({ children: rc }: { children: React.ReactNode })
     const memberQuery = query(collection(db, "children"), where("memberIds", "array-contains", userId));
     const legacyQuery = query(collection(db, "children"), where("userId", "==", userId));
 
-    const unsubMember = onSnapshot(memberQuery, (snap) => {
-      memberChildren = snap.docs.map((d) => mapChild(d.id, d.data()));
-      apply();
-    });
+    const unsubMember = onSnapshot(
+      memberQuery,
+      (snap) => { memberChildren = snap.docs.map((d) => mapChild(d.id, d.data())); apply(); },
+      (err) => console.error("[Firestore] children(member) read failed:", err)
+    );
 
-    const unsubLegacy = onSnapshot(legacyQuery, (snap) => {
-      legacyChildren = snap.docs.map((d) => {
-        const data = d.data();
-        const memberIds = Array.isArray(data.memberIds) ? data.memberIds : [];
-        if (!memberIds.includes(userId)) {
-          void setDoc(doc(db, "children", d.id), { ownerId: data.ownerId ?? userId, memberIds: [userId] }, { merge: true });
-        }
-        return mapChild(d.id, data);
-      });
-      apply();
-    });
+    const unsubLegacy = onSnapshot(
+      legacyQuery,
+      (snap) => {
+        legacyChildren = snap.docs.map((d) => {
+          const data = d.data();
+          const memberIds = Array.isArray(data.memberIds) ? data.memberIds : [];
+          if (!memberIds.includes(userId)) {
+            void setDoc(doc(db, "children", d.id), { ownerId: data.ownerId ?? userId, memberIds: [userId] }, { merge: true });
+          }
+          return mapChild(d.id, data);
+        });
+        apply();
+      },
+      (err) => console.error("[Firestore] children(legacy) read failed:", err)
+    );
 
     return () => { unsubMember(); unsubLegacy(); };
   }, [userId]);
@@ -113,17 +121,24 @@ export function RecordsProvider({ children: rc }: { children: React.ReactNode })
   useEffect(() => {
     if (!activeId) { setRecords([]); return; }
     const q = query(collection(db, "children", activeId, "records"), orderBy("date", "asc"));
-    const unsub = onSnapshot(q, (snap) => {
-      setRecords(snap.docs.map((d) => ({ date: d.data().date as string, height: d.data().height as number, weight: d.data().weight as number, note: d.data().note as string | undefined })));
-    });
+    const unsub = onSnapshot(
+      q,
+      (snap) => { setRecords(snap.docs.map((d) => ({ date: d.data().date as string, height: d.data().height as number, weight: d.data().weight as number, note: d.data().note as string | undefined }))); },
+      (err) => {
+        console.error("[Firestore] records read failed:", err);
+        showError("기록을 불러오지 못했어요. Firestore 규칙을 확인해주세요.");
+      }
+    );
     return () => unsub();
   }, [activeId]);
 
   useEffect(() => {
     if (!activeId) { setVaccines([]); return; }
-    const unsub = onSnapshot(doc(db, "children", activeId, "meta", "vaccines"), (snap) => {
-      setVaccines(snap.exists() ? (snap.data().list as Vaccine[]) : VACCINES);
-    });
+    const unsub = onSnapshot(
+      doc(db, "children", activeId, "meta", "vaccines"),
+      (snap) => { setVaccines(snap.exists() ? (snap.data().list as Vaccine[]) : VACCINES); },
+      (err) => console.error("[Firestore] vaccines read failed:", err)
+    );
     return () => unsub();
   }, [activeId]);
 
@@ -139,6 +154,7 @@ export function RecordsProvider({ children: rc }: { children: React.ReactNode })
       date: r.date, height: r.height, weight: r.weight, note: r.note ?? null, createdAt: serverTimestamp(),
     }).catch((err) => {
       console.error("[Firestore] addRecord failed:", err);
+      showError("저장 실패: Firestore 규칙을 확인해주세요.");
       setRecords(prev);
     });
   };
@@ -149,6 +165,7 @@ export function RecordsProvider({ children: rc }: { children: React.ReactNode })
     setRecords((cur) => cur.filter((r) => r.date !== date));
     deleteDoc(doc(db, "children", activeId, "records", date)).catch((err) => {
       console.error("[Firestore] deleteRecord failed:", err);
+      showError("삭제 실패: Firestore 규칙을 확인해주세요.");
       setRecords(prev);
     });
   };
@@ -165,6 +182,7 @@ export function RecordsProvider({ children: rc }: { children: React.ReactNode })
     if (date !== updated.date) writes.push(deleteDoc(doc(db, "children", activeId, "records", date)));
     Promise.all(writes).catch((err) => {
       console.error("[Firestore] updateRecord failed:", err);
+      showError("저장 실패: Firestore 규칙을 확인해주세요.");
       setRecords(prev);
     });
   };
@@ -181,6 +199,7 @@ export function RecordsProvider({ children: rc }: { children: React.ReactNode })
       setDoc(doc(db, "children", ref.id, "meta", "vaccines"), { list: VACCINES }),
     ]).catch((err) => {
       console.error("[Firestore] addChild failed:", err);
+      showError("아이 등록 실패: Firestore 규칙을 확인해주세요.");
       setList(prev);
     });
   };
@@ -215,7 +234,16 @@ export function RecordsProvider({ children: rc }: { children: React.ReactNode })
   const completeVaccine = (name: string, round?: string) => { const updated = vaccines.map((v) => v.name === name && v.round === round ? { ...v, status: "done" as const } : v); setVaccines(updated); saveVaccines(updated); };
   const postponeVaccine = (name: string, round: string | undefined, days: number) => { const updated = vaccines.map((v) => v.name === name && v.round === round ? { ...v, dueDate: shiftDate(v.dueDate, days) } : v); setVaccines(updated); saveVaccines(updated); };
 
-  return <AppCtx.Provider value={{ records, addRecord, deleteRecord, updateRecord, children: list, activeChild, setActiveChild, addChild, updateChild, deleteChild, vaccines, completeVaccine, postponeVaccine }}>{rc}</AppCtx.Provider>;
+  return (
+    <>
+      {dbError && (
+        <div className="fixed bottom-20 left-1/2 z-[100] -translate-x-1/2 whitespace-nowrap rounded-[12px] bg-red-500 px-5 py-3 text-[13px] font-medium text-white shadow-lg">
+          {dbError}
+        </div>
+      )}
+      <AppCtx.Provider value={{ records, addRecord, deleteRecord, updateRecord, children: list, activeChild, setActiveChild, addChild, updateChild, deleteChild, vaccines, completeVaccine, postponeVaccine }}>{rc}</AppCtx.Provider>
+    </>
+  );
 }
 
 export const useRecords = () => useContext(AppCtx);
