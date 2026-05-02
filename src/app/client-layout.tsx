@@ -6,7 +6,7 @@ import { useAuth } from "./auth-provider";
 import { RecordsProvider } from "./providers";
 import { SplashScreen } from "@/components/SplashScreen";
 
-const PUBLIC = ["/login", "/signup", "/share"];
+const PUBLIC = ["/login", "/signup", "/share", "/invite"];
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();

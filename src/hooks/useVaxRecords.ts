@@ -25,12 +25,16 @@ export function useVaxRecords(childId: string | null) {
     return () => unsub();
   }, [childId]);
 
-  const saveRecords = (recs: VaccinationRecord[]) => {
+  const saveRecords = (recs: VaccinationRecord[], prevRecs?: VaccinationRecord[]) => {
     if (!childId) return;
-    void setDoc(doc(db, "children", childId, "meta", "vaccinationRecords"), { list: recs });
+    setDoc(doc(db, "children", childId, "meta", "vaccinationRecords"), { list: recs }).catch((err) => {
+      console.error("[Firestore] saveVaxRecords failed:", err);
+      if (prevRecs !== undefined) setRecords(prevRecs);
+    });
   };
 
   const mergeRecords = (incoming: VaccinationRecord[]) => {
+    const prev = records;
     const merged = [...records];
     for (const nr of incoming) {
       const idx = merged.findIndex(
@@ -42,7 +46,8 @@ export function useVaxRecords(childId: string | null) {
         merged.push(nr);
       }
     }
-    saveRecords(merged);
+    setRecords(merged);
+    saveRecords(merged, prev);
     return merged;
   };
 
@@ -62,11 +67,13 @@ export function useVaxRecords(childId: string | null) {
       completedDate: todayStr,
     };
 
+    const prev = records;
     const merged = [...records];
     const idx = merged.findIndex((r) => r.vaccineGroup === vaccineGroup && r.doseNumber === doseNumber);
     if (idx >= 0) merged[idx] = newRecord;
     else merged.push(newRecord);
-    saveRecords(merged);
+    setRecords(merged);
+    saveRecords(merged, prev);
   };
 
   return { records, loading, saveRecords, mergeRecords, markDone };
