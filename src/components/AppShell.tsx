@@ -13,7 +13,7 @@ const NAV = [
   { href: "/record", label: "기록", icon: "edit" },
   { href: "/growth", label: "성장 추이", icon: "chart" },
   { href: "/ai", label: "AI 분석", icon: "sparkle" },
-  { href: "/schedule", label: "일정", icon: "calendar" },
+  { href: "/vaccination", label: "예방접종", icon: "syringe" },
 ];
 
 export function TopBar() {
