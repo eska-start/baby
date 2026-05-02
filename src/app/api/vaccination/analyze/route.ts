@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { NextRequest, NextResponse } from 'next/server';
 import type { AnalysisResult } from '@/types/vaccination';
 
@@ -45,31 +45,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '분석할 텍스트가 없습니다.' }, { status: 400 });
     }
 
-    const apiKey = process.env.ANTHROPIC_API_KEY;
+    const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       return NextResponse.json({ error: 'API 키가 설정되지 않았습니다.' }, { status: 500 });
     }
 
-    const client = new Anthropic({ apiKey });
+    const client = new OpenAI({ apiKey });
 
     const userContent = birthDate
       ? `아이 생년월일: ${birthDate}\n\n--- 기록 내용 ---\n${text}`
       : text;
 
-    const message = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 2048,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: userContent }],
+    const completion = await client.chat.completions.create({
+      model: 'gpt-4o',
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: userContent },
+      ],
     });
 
-    const raw = message.content[0];
-    if (raw.type !== 'text') {
-      throw new Error('Unexpected response type');
-    }
-
-    const jsonText = raw.text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    const result = JSON.parse(jsonText) as AnalysisResult;
+    const raw = completion.choices[0].message.content ?? '{}';
+    const result = JSON.parse(raw) as AnalysisResult;
 
     return NextResponse.json(result);
   } catch (err) {
