@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { Icon } from "@/components/Icon";
 import { VaccineCard, VaccineGroupCard } from "./VaccineCard";
 import { TimelineView } from "./TimelineView";
-import { loadVaxRecords, saveVaxRecords, computeSchedule, summarize, genId } from "@/lib/vaccineParser";
+import { computeSchedule, summarize } from "@/lib/vaccineParser";
 import { VACCINE_SCHEDULE } from "@/lib/vaccineSchedule";
-import { formatDate } from "@/lib/data";
-import type { ComputedVaccineItem, VaccinationRecord } from "@/types/vaccination";
+import { useVaxRecords } from "@/hooks/useVaxRecords";
+import type { ComputedVaccineItem } from "@/types/vaccination";
 
 type Filter = "all" | "vaccination" | "checkup";
 type View = "list" | "timeline" | "groups";
@@ -21,50 +21,16 @@ export function ScheduleTab({ childId, birthDate }: Props) {
   const [filter, setFilter] = useState<Filter>("all");
   const [hideDone, setHideDone] = useState(false);
   const [view, setView] = useState<View>("list");
-  const [items, setItems] = useState<ComputedVaccineItem[]>([]);
-  const [tick, setTick] = useState(0);
 
-  const reload = useCallback(() => {
-    const records = loadVaxRecords(childId);
-    setItems(computeSchedule(birthDate, records, filter, hideDone));
-  }, [childId, birthDate, filter, hideDone]);
+  const { records, loading, markDone } = useVaxRecords(childId);
 
-  useEffect(() => {
-    reload();
-  }, [reload, tick]);
+  const items = computeSchedule(birthDate, records, filter, hideDone);
+  const allItems = computeSchedule(birthDate, records, "all", false);
+  const summary = summarize(allItems);
 
-  const markDone = (item: ComputedVaccineItem) => {
-    const records = loadVaxRecords(childId);
-    const today = new Date();
-    const p = (n: number) => String(n).padStart(2, "0");
-    const todayStr = `${today.getFullYear()}-${p(today.getMonth() + 1)}-${p(today.getDate())}`;
-
-    const newRecord: VaccinationRecord = {
-      id: genId(),
-      childId,
-      type: item.type,
-      name: `${item.displayName} ${item.doseNumber}차`,
-      vaccineGroup: item.vaccineGroup,
-      doseNumber: item.doseNumber,
-      status: "completed",
-      completedDate: todayStr,
-    };
-
-    const idx = records.findIndex(
-      (r) => r.vaccineGroup === item.vaccineGroup && r.doseNumber === item.doseNumber
-    );
-    if (idx >= 0) {
-      records[idx] = newRecord;
-    } else {
-      records.push(newRecord);
-    }
-    saveVaxRecords(childId, records);
-    setTick((t) => t + 1);
-  };
-
-  const summary = summarize(computeSchedule(birthDate, loadVaxRecords(childId), "all", false));
   const urgent = items.filter((i) => i.status === "overdue" || i.status === "upcoming");
   const scheduled = items.filter((i) => i.status === "scheduled");
+  const done = items.filter((i) => i.status === "completed");
 
   const groups = VACCINE_SCHEDULE.filter(
     (s) => filter === "all" || s.type === filter
@@ -72,6 +38,10 @@ export function ScheduleTab({ childId, birthDate }: Props) {
     ...s,
     items: items.filter((i) => i.vaccineGroup === s.vaccineGroup),
   })).filter((g) => g.items.length > 0);
+
+  const handleMarkDone = (item: ComputedVaccineItem) => {
+    markDone(item.vaccineGroup, item.doseNumber, item.type, item.displayName);
+  };
 
   if (!birthDate) {
     return (
@@ -82,28 +52,21 @@ export function ScheduleTab({ childId, birthDate }: Props) {
     );
   }
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-line border-t-accent" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-3">
-        <SummaryCard
-          color="#EF4444"
-          bg="#FEE2E2"
-          label="긴급"
-          count={summary.overdue + summary.upcoming}
-        />
-        <SummaryCard
-          color="#F59E0B"
-          bg="#FEF3C7"
-          label="예정"
-          count={summary.scheduled}
-        />
-        <SummaryCard
-          color="#10B981"
-          bg="#D1FAE5"
-          label="완료"
-          count={summary.completed}
-        />
+        <SummaryCard color="#EF4444" bg="#FEE2E2" label="긴급" count={summary.overdue + summary.upcoming} />
+        <SummaryCard color="#F59E0B" bg="#FEF3C7" label="예정" count={summary.scheduled} />
+        <SummaryCard color="#10B981" bg="#D1FAE5" label="완료" count={summary.completed} />
       </div>
 
       {/* Filters */}
@@ -113,9 +76,7 @@ export function ScheduleTab({ childId, birthDate }: Props) {
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`rounded-[7px] px-3 py-1.5 text-[12px] transition ${
-                filter === f ? "bg-ink text-white font-semibold" : "text-ink-soft"
-              }`}
+              className={`rounded-[7px] px-3 py-1.5 text-[12px] transition ${filter === f ? "bg-ink text-white font-semibold" : "text-ink-soft"}`}
             >
               {f === "all" ? "전체" : f === "vaccination" ? "예방접종" : "건강검진"}
             </button>
@@ -123,11 +84,7 @@ export function ScheduleTab({ childId, birthDate }: Props) {
         </div>
         <button
           onClick={() => setHideDone((h) => !h)}
-          className={`rounded-[10px] border px-3 py-1.5 text-[12px] transition ${
-            hideDone
-              ? "border-ink bg-ink text-white font-semibold"
-              : "border-line bg-card text-ink-soft"
-          }`}
+          className={`rounded-[10px] border px-3 py-1.5 text-[12px] transition ${hideDone ? "border-ink bg-ink text-white font-semibold" : "border-line bg-card text-ink-soft"}`}
         >
           완료 숨기기
         </button>
@@ -136,9 +93,7 @@ export function ScheduleTab({ childId, birthDate }: Props) {
             <button
               key={v}
               onClick={() => setView(v)}
-              className={`rounded-[7px] px-3 py-1.5 text-[12px] transition ${
-                view === v ? "bg-ink text-white font-semibold" : "text-ink-soft"
-              }`}
+              className={`rounded-[7px] px-3 py-1.5 text-[12px] transition ${view === v ? "bg-ink text-white font-semibold" : "text-ink-soft"}`}
             >
               {v === "list" ? "목록" : v === "groups" ? "그룹" : "타임라인"}
             </button>
@@ -151,60 +106,34 @@ export function ScheduleTab({ childId, birthDate }: Props) {
         <div className="space-y-4">
           {urgent.length > 0 && (
             <section>
-              <div className="mb-2 text-[11px] font-semibold tracking-[0.5px] text-[#EF4444]">
-                긴급 · {urgent.length}건
-              </div>
+              <div className="mb-2 text-[11px] font-semibold tracking-[0.5px] text-[#EF4444]">긴급 · {urgent.length}건</div>
               <div className="space-y-2">
-                {urgent
-                  .sort((a, b) => a.dDays - b.dDays)
-                  .map((item) => (
-                    <VaccineCard
-                      key={`${item.vaccineGroup}-${item.doseNumber}`}
-                      item={item}
-                      onMarkDone={markDone}
-                    />
-                  ))}
+                {urgent.sort((a, b) => a.dDays - b.dDays).map((item) => (
+                  <VaccineCard key={`${item.vaccineGroup}-${item.doseNumber}`} item={item} onMarkDone={handleMarkDone} />
+                ))}
               </div>
             </section>
           )}
-
           {scheduled.length > 0 && (
             <section>
-              <div className="mb-2 text-[11px] font-semibold tracking-[0.5px] text-ink-mute">
-                예정 · {scheduled.length}건
-              </div>
+              <div className="mb-2 text-[11px] font-semibold tracking-[0.5px] text-ink-mute">예정 · {scheduled.length}건</div>
               <div className="space-y-2">
-                {scheduled
-                  .sort((a, b) => a.dDays - b.dDays)
-                  .map((item) => (
-                    <VaccineCard
-                      key={`${item.vaccineGroup}-${item.doseNumber}`}
-                      item={item}
-                      onMarkDone={markDone}
-                    />
-                  ))}
+                {scheduled.sort((a, b) => a.dDays - b.dDays).map((item) => (
+                  <VaccineCard key={`${item.vaccineGroup}-${item.doseNumber}`} item={item} onMarkDone={handleMarkDone} />
+                ))}
               </div>
             </section>
           )}
-
-          {!hideDone && (
+          {!hideDone && done.length > 0 && (
             <section>
-              <div className="mb-2 text-[11px] font-semibold tracking-[0.5px] text-ink-mute">
-                완료 · {summary.completed}건
-              </div>
+              <div className="mb-2 text-[11px] font-semibold tracking-[0.5px] text-ink-mute">완료 · {done.length}건</div>
               <div className="space-y-2">
-                {items
-                  .filter((i) => i.status === "completed")
-                  .map((item) => (
-                    <VaccineCard
-                      key={`${item.vaccineGroup}-${item.doseNumber}`}
-                      item={item}
-                    />
-                  ))}
+                {done.map((item) => (
+                  <VaccineCard key={`${item.vaccineGroup}-${item.doseNumber}`} item={item} />
+                ))}
               </div>
             </section>
           )}
-
           {items.length === 0 && (
             <div className="rounded-[18px] border border-line bg-card p-8 text-center">
               <div className="text-[14px] font-semibold text-ink">표시할 일정이 없어요</div>
@@ -223,7 +152,7 @@ export function ScheduleTab({ childId, birthDate }: Props) {
               vaccineGroup={g.vaccineGroup}
               displayName={g.displayName}
               items={g.items}
-              onMarkDone={markDone}
+              onMarkDone={handleMarkDone}
             />
           ))}
         </div>
@@ -238,41 +167,18 @@ export function ScheduleTab({ childId, birthDate }: Props) {
             </div>
             <span className="text-[13px] font-semibold text-ink">월령별 타임라인</span>
           </div>
-          <TimelineView
-            birthDate={birthDate}
-            items={computeSchedule(birthDate, loadVaxRecords(childId), filter, hideDone)}
-          />
+          <TimelineView birthDate={birthDate} items={computeSchedule(birthDate, records, filter, hideDone)} />
         </div>
       )}
     </div>
   );
 }
 
-function SummaryCard({
-  color,
-  bg,
-  label,
-  count,
-}: {
-  color: string;
-  bg: string;
-  label: string;
-  count: number;
-}) {
+function SummaryCard({ color, bg, label, count }: { color: string; bg: string; label: string; count: number }) {
   return (
-    <div
-      className="rounded-[14px] p-3.5 text-center"
-      style={{ background: bg }}
-    >
-      <div
-        className="ko-num text-[24px] font-bold leading-none"
-        style={{ color }}
-      >
-        {count}
-      </div>
-      <div className="mt-1 text-[11px] font-medium" style={{ color }}>
-        {label}
-      </div>
+    <div className="rounded-[14px] p-3.5 text-center" style={{ background: bg }}>
+      <div className="ko-num text-[24px] font-bold leading-none" style={{ color }}>{count}</div>
+      <div className="mt-1 text-[11px] font-medium" style={{ color }}>{label}</div>
     </div>
   );
 }

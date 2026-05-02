@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/app/auth-provider";
 import { AikiLogo } from "@/components/AikiLogo";
 
@@ -38,14 +38,16 @@ function GoogleIcon() {
 export default function LoginPage() {
   const { user, isLoading, loginWithGoogle, loginWithEmail } = useAuth();
   const router = useRouter();
+  const params = useSearchParams();
+  const next = params.get("next") ?? "/";
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   useEffect(() => {
-    if (!isLoading && user) router.replace("/");
-  }, [isLoading, user, router]);
+    if (!isLoading && user) router.replace(next);
+  }, [isLoading, user, router, next]);
 
   const handleEmailLogin = async () => {
     setLoading(true);
