@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "firebase": "^12.12.1",
     "next": "^15.3.0",
     "openai": "^6.35.0",
     "react": "^19.0.0",
