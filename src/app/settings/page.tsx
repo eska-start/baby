@@ -73,6 +73,7 @@ export default function SettingsPage() {
   const [mode, setMode] = useState<Mode>({ type: "list" });
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [inviteLoading, setInviteLoading] = useState(false);
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
 
@@ -93,18 +94,27 @@ export default function SettingsPage() {
 
   // 함께 기록하기 초대 링크 (Firestore invite)
   const createInviteLink = async () => {
-    if (!activeChild || !user) return;
-    const code = genCode();
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7일
-    await setDoc(doc(db, "invites", code), {
-      childId: activeChild.id,
-      childName: activeChild.name,
-      createdBy: user.id,
-      createdAt: serverTimestamp(),
-      expiresAt: expiresAt.toISOString(),
-    });
-    const url = `${window.location.origin}/invite?code=${code}`;
-    navigator.clipboard.writeText(url).then(() => showToast("초대 링크가 복사됐어요! (7일간 유효)"));
+    if (!activeChild || !user || inviteLoading) return;
+    setInviteLoading(true);
+    try {
+      const code = genCode();
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7일
+      await setDoc(doc(db, "invites", code), {
+        childId: activeChild.id,
+        childName: activeChild.name,
+        createdBy: user.id,
+        createdAt: serverTimestamp(),
+        expiresAt: expiresAt.toISOString(),
+      });
+      const url = `${window.location.origin}/invite?code=${code}`;
+      await navigator.clipboard.writeText(url);
+      showToast("초대 링크가 복사됐어요! (7일간 유효)");
+    } catch (err) {
+      console.error("createInviteLink failed:", err);
+      showToast("초대 링크 생성에 실패했어요. Firestore 규칙을 확인해주세요.");
+    } finally {
+      setInviteLoading(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -210,8 +220,8 @@ export default function SettingsPage() {
                     <div className="text-[13px] font-semibold text-ink">함께 기록하기</div>
                     <div className="text-[11px] text-ink-mute">배우자·가족이 직접 기록할 수 있어요 (7일 유효)</div>
                   </div>
-                  <button onClick={createInviteLink} className="inline-flex items-center gap-1.5 rounded-[10px] border border-accent/30 bg-accent-soft px-3 py-2 text-[12px] font-semibold text-accent transition hover:bg-accent hover:text-white">
-                    <Icon name="plus" size={12} color="currentColor" /> 초대
+                  <button onClick={createInviteLink} disabled={inviteLoading} className="inline-flex items-center gap-1.5 rounded-[10px] border border-accent/30 bg-accent-soft px-3 py-2 text-[12px] font-semibold text-accent transition hover:bg-accent hover:text-white disabled:opacity-60">
+                    {inviteLoading ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-accent/30 border-t-accent" /> : <Icon name="plus" size={12} color="currentColor" />} {inviteLoading ? "생성 중..." : "초대"}
                   </button>
                 </div>
 

@@ -69,22 +69,29 @@ export default function GrowthPage() {
 
   const oneYearAgo = new Date(last.date);
   oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-  const yearBase = nearestPastRecord(GROWTH_RECORDS, oneYearAgo) ?? first;
+  const actualYearBase = nearestPastRecord(GROWTH_RECORDS, oneYearAgo); // undefined if no 1-year-old data
+  const yearBase = actualYearBase ?? first;
 
   const selectedBase = period === "주간" ? prev : period === "월간" ? yearBase : first;
   const selectedMonths = selectedBase ? monthsBetween(selectedBase.date, last.date) : 0;
   const selectedHeightDiff = selectedBase ? last.height - selectedBase.height : 0;
-  const monthlyAverage = selectedBase && selectedMonths > 0.5 ? selectedHeightDiff / selectedMonths : null;
+  const monthlyAverage = selectedBase && selectedBase.date !== last.date && selectedMonths > 0.1 ? selectedHeightDiff / selectedMonths : null;
   const monthlyAverageLabel = monthlyAverage === null ? "—" : `+${monthlyAverage.toFixed(1)}`;
-  const monthlyAverageSub = period === "주간" ? "최근 구간 평균" : period === "월간" ? "최근 1년 평균" : "전체 기간 평균";
+  const monthlyAverageSub = period === "주간" ? "직전 기록 기준" : period === "월간" ? "최근 기록 기준" : "전체 기간 기준";
 
   const previousHeightDelta = prev ? last.height - prev.height : null;
   const previousWeightDelta = prev ? last.weight - prev.weight : null;
-  const yearHeightDelta = yearBase ? last.height - yearBase.height : null;
-  const yearWeightDelta = yearBase ? last.weight - yearBase.weight : null;
-  const totalHeightDelta = first ? last.height - first.height : null;
-  const totalWeightDelta = first ? last.weight - first.weight : null;
+  // 1년 전 데이터가 없으면 null (같은 값을 "전체 변화"에 중복 표시 방지)
+  const yearHeightDelta = actualYearBase ? last.height - actualYearBase.height : null;
+  const yearWeightDelta = actualYearBase ? last.weight - actualYearBase.weight : null;
+  // 전체 변화: 첫 기록과 최근 기록이 다를 때만 표시
+  const totalHeightDelta = first && first.date !== last.date ? last.height - first.height : null;
+  const totalWeightDelta = first && first.date !== last.date ? last.weight - first.weight : null;
   const bmiVal = bmi(last.height, last.weight);
+
+  const prevSub = prev ? shortDate(prev.date) + " 기준" : "";
+  const yearSub = actualYearBase ? shortDate(actualYearBase.date) + " 기준" : "1년 이상 데이터 필요";
+  const totalSub = first && first.date !== last.date ? shortDate(first.date) + " 기준" : "";
 
   return (
     <>
@@ -140,9 +147,9 @@ export default function GrowthPage() {
         </section>
 
         <section className="mt-3 grid grid-cols-3 gap-3 md:mt-4 md:gap-4">
-          <DeltaStrip label="이전 기록 대비" valueH={previousHeightDelta === null ? "—" : formatSigned(previousHeightDelta, "cm")} valueW={previousWeightDelta === null ? "—" : formatSigned(previousWeightDelta, "kg")} />
-          <DeltaStrip label="최근 1년 변화" valueH={yearHeightDelta === null ? "—" : formatSigned(yearHeightDelta, "cm")} valueW={yearWeightDelta === null ? "—" : formatSigned(yearWeightDelta, "kg")} />
-          <DeltaStrip label="전체 변화" valueH={totalHeightDelta === null ? "—" : formatSigned(totalHeightDelta, "cm")} valueW={totalWeightDelta === null ? "—" : formatSigned(totalWeightDelta, "kg")} />
+          <DeltaStrip label="이전 대비" sub={prevSub} valueH={previousHeightDelta === null ? "—" : formatSigned(previousHeightDelta, "cm")} valueW={previousWeightDelta === null ? "—" : formatSigned(previousWeightDelta, "kg")} />
+          <DeltaStrip label="최근 1년" sub={yearSub} valueH={yearHeightDelta === null ? "—" : formatSigned(yearHeightDelta, "cm")} valueW={yearWeightDelta === null ? "—" : formatSigned(yearWeightDelta, "kg")} />
+          <DeltaStrip label="전체 변화" sub={totalSub} valueH={totalHeightDelta === null ? "—" : formatSigned(totalHeightDelta, "cm")} valueW={totalWeightDelta === null ? "—" : formatSigned(totalWeightDelta, "kg")} />
         </section>
 
         <section className="mt-4 rounded-[18px] border border-line bg-card p-5 md:mt-6 md:p-7">
@@ -200,4 +207,4 @@ function EditModal({ record, onSave, onClose }: { record: GrowthRecord; onSave: 
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <div className="rounded-[12px] border border-line bg-bg px-4 py-3"><div className="mb-1 text-[10px] tracking-[0.5px] text-ink-mute">{label}</div>{children}</div>; }
 function SummaryCard({ label, value, unit, sub, tone }: { label: string; value: string; unit: string; sub: string; tone: "good" | "accent" }) { const color = tone === "good" ? "#5C7A5C" : "#D77B50"; return <div className="rounded-[14px] border border-line bg-card px-4 py-4 md:px-5"><div className="mb-2 text-[11px] text-ink-mute">{label}</div><div className="flex items-baseline gap-1"><span className="ko-num font-serif text-[26px] font-medium text-ink md:text-[30px]">{value}</span><span className="text-[12px] text-ink-mute">{unit}</span></div><div className="mt-1.5 text-[11px] font-medium" style={{ color }}>{sub}</div></div>; }
-function DeltaStrip({ label, valueH, valueW }: { label: string; valueH: string; valueW: string }) { return <div className="rounded-[14px] border border-line bg-card px-4 py-3.5"><div className="text-[10px] uppercase tracking-[0.5px] text-ink-mute">{label}</div><div className="ko-num mt-1.5 flex items-baseline gap-1.5"><Icon name="ruler" size={14} color="#D77B50" /><span className="text-[13px] font-semibold text-ink">{valueH}</span></div><div className="ko-num mt-0.5 flex items-baseline gap-1.5"><Icon name="scale" size={14} color="#8B8377" /><span className="text-[12px] text-ink-soft">{valueW}</span></div></div>; }
+function DeltaStrip({ label, sub, valueH, valueW }: { label: string; sub?: string; valueH: string; valueW: string }) { return <div className="rounded-[14px] border border-line bg-card px-4 py-3.5"><div className="text-[10px] uppercase tracking-[0.5px] text-ink-mute">{label}</div>{sub && <div className="ko-num text-[9px] text-ink-mute/70 mt-0.5 truncate">{sub}</div>}<div className="ko-num mt-1.5 flex items-baseline gap-1.5"><Icon name="ruler" size={14} color="#D77B50" /><span className="text-[13px] font-semibold text-ink">{valueH}</span></div><div className="ko-num mt-0.5 flex items-baseline gap-1.5"><Icon name="scale" size={14} color="#8B8377" /><span className="text-[12px] text-ink-soft">{valueW}</span></div></div>; }

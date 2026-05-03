@@ -22,7 +22,7 @@ export function ScheduleTab({ childId, birthDate }: Props) {
   const [hideDone, setHideDone] = useState(false);
   const [view, setView] = useState<View>("list");
 
-  const { records, loading, markDone } = useVaxRecords(childId);
+  const { records, loading, markDone, undoDone } = useVaxRecords(childId);
 
   const items = computeSchedule(birthDate, records, filter, hideDone);
   const allItems = computeSchedule(birthDate, records, "all", false);
@@ -41,6 +41,10 @@ export function ScheduleTab({ childId, birthDate }: Props) {
 
   const handleMarkDone = (item: ComputedVaccineItem) => {
     markDone(item.vaccineGroup, item.doseNumber, item.type, item.displayName);
+  };
+
+  const handleUndo = (item: ComputedVaccineItem) => {
+    undoDone(item.vaccineGroup, item.doseNumber);
   };
 
   if (!birthDate) {
@@ -129,7 +133,7 @@ export function ScheduleTab({ childId, birthDate }: Props) {
               <div className="mb-2 text-[11px] font-semibold tracking-[0.5px] text-ink-mute">완료 · {done.length}건</div>
               <div className="space-y-2">
                 {done.map((item) => (
-                  <VaccineCard key={`${item.vaccineGroup}-${item.doseNumber}`} item={item} />
+                  <VaccineCard key={`${item.vaccineGroup}-${item.doseNumber}`} item={item} onUndo={handleUndo} />
                 ))}
               </div>
             </section>
@@ -153,6 +157,7 @@ export function ScheduleTab({ childId, birthDate }: Props) {
               displayName={g.displayName}
               items={g.items}
               onMarkDone={handleMarkDone}
+              onUndo={handleUndo}
             />
           ))}
         </div>

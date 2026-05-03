@@ -76,5 +76,14 @@ export function useVaxRecords(childId: string | null) {
     saveRecords(merged, prev);
   };
 
-  return { records, loading, saveRecords, mergeRecords, markDone };
+  const undoDone = (vaccineGroup: string, doseNumber: number) => {
+    const prev = records;
+    const filtered = records.filter(
+      (r) => !(r.vaccineGroup === vaccineGroup && r.doseNumber === doseNumber)
+    );
+    setRecords(filtered);
+    saveRecords(filtered, prev);
+  };
+
+  return { records, loading, saveRecords, mergeRecords, markDone, undoDone };
 }

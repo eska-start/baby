@@ -221,6 +221,13 @@ export function Icon({ name, size = 16, color = "currentColor", strokeWidth = 1.
           <line x1="21" y1="12" x2="9" y2="12" />
         </svg>
       );
+    case "undo":
+      return (
+        <svg {...common}>
+          <path d="M3 7v6h6" />
+          <path d="M3 13a9 9 0 1 0 2.6-6.4L3 9" />
+        </svg>
+      );
     default:
       return null;
   }
