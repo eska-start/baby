@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { RecordsProvider } from "./providers";
-import SplashScreen from "@/components/SplashScreen";
 
 export const metadata: Metadata = {
   title: "아이결 · 아이의 성장을 따뜻하게",
@@ -23,9 +22,7 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body className="bg-bg text-ink min-h-screen">
-        <RecordsProvider>
-          <SplashScreen>{children}</SplashScreen>
-        </RecordsProvider>
+        <RecordsProvider>{children}</RecordsProvider>
       </body>
     </html>
   );
