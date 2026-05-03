@@ -25,6 +25,14 @@ export function addMonths(dateStr: string, months: number): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
+function windowEnd(dateStr: string, months: number): string {
+  const d = new Date(dateStr);
+  d.setMonth(d.getMonth() + months + 1);
+  d.setDate(d.getDate() - 1);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 export function ageInMonths(birthStr: string): number {
   const birth = new Date(birthStr);
   const now = new Date();
@@ -60,7 +68,7 @@ export function computeSchedule(
   for (const schedule of scheduleItems) {
     for (const dose of schedule.doses) {
       const dueDate = addMonths(birthDate, dose.ageMonthMin);
-      const displayEndDate = addMonths(birthDate, dose.ageMonthMax);
+      const displayEndDate = windowEnd(birthDate, dose.ageMonthMax);
       const dueDateEnd = addMonths(birthDate, dose.ageMonthMax + 1);
       const isRange = dose.ageMonthMin !== dose.ageMonthMax;
       const dd = dDays(dueDate);

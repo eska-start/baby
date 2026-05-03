@@ -23,7 +23,8 @@ function getScheduleHelpers(birth: string) {
   const b = new Date(birth);
   const addDays = (n: number) => { const d = new Date(b); d.setDate(d.getDate() + n); return ymd(d); };
   const addMonths = (n: number) => { const d = new Date(b); d.setMonth(d.getMonth() + n); return ymd(d); };
-  const rangeMonths = (s: number, e: number) => ({ startDate: addMonths(s), dueDate: addMonths(e) });
+  const windowEnd = (n: number) => { const d = new Date(b); d.setMonth(d.getMonth() + n + 1); d.setDate(d.getDate() - 1); return ymd(d); };
+  const rangeMonths = (s: number, e: number) => ({ startDate: addMonths(s), dueDate: windowEnd(e) });
   const atMonth = (m: number) => ({ dueDate: addMonths(m) });
   return { addDays, addMonths, rangeMonths, atMonth };
 }
