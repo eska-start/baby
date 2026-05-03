@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import {
   collection,
   deleteDoc,
+  deleteField,
   doc,
   onSnapshot,
   orderBy,
@@ -16,7 +17,13 @@ import { db } from "@/lib/firebase";
 import { useAuth } from "./auth-provider";
 import { GrowthRecord, Vaccine, VACCINES } from "@/lib/data";
 
-export type ChildProfile = { id: string; name: string; birth: string; gender: "여" | "남" };
+export type ChildProfile = {
+  id: string;
+  name: string;
+  birth: string;
+  gender: "여" | "남";
+  deletedAt?: string; // ISO string — set on soft-delete, absent when active
+};
 
 type Ctx = {
   records: GrowthRecord[];
@@ -24,11 +31,13 @@ type Ctx = {
   deleteRecord: (date: string) => void;
   updateRecord: (date: string, updated: GrowthRecord) => void;
   children: ChildProfile[];
+  deletedChildren: ChildProfile[];
   activeChild: ChildProfile | null;
   setActiveChild: (id: string) => void;
-  addChild: (profile: Omit<ChildProfile, "id">) => void;
-  updateChild: (id: string, updates: Omit<ChildProfile, "id">) => void;
+  addChild: (profile: Omit<ChildProfile, "id" | "deletedAt">) => void;
+  updateChild: (id: string, updates: Omit<ChildProfile, "id" | "deletedAt">) => void;
   deleteChild: (id: string) => void;
+  restoreChild: (id: string) => void;
   vaccines: Vaccine[];
   completeVaccine: (name: string, round?: string) => void;
   postponeVaccine: (name: string, round: string | undefined, days: number) => void;
@@ -36,11 +45,14 @@ type Ctx = {
 
 const AppCtx = createContext<Ctx>({
   records: [], addRecord: () => {}, deleteRecord: () => {}, updateRecord: () => {},
-  children: [], activeChild: null, setActiveChild: () => {}, addChild: () => {}, updateChild: () => {}, deleteChild: () => {},
+  children: [], deletedChildren: [], activeChild: null,
+  setActiveChild: () => {}, addChild: () => {}, updateChild: () => {},
+  deleteChild: () => {}, restoreChild: () => {},
   vaccines: [], completeVaccine: () => {}, postponeVaccine: () => {},
 });
 
 const ACTIVE_KEY = "ai-gyeol-active";
+const SOFT_DELETE_MS = 30 * 24 * 60 * 60 * 1000; // 30일
 
 function shiftDate(s: string, days: number): string {
   const d = new Date(s);
@@ -50,7 +62,13 @@ function shiftDate(s: string, days: number): string {
 }
 
 function mapChild(id: string, data: Record<string, unknown>): ChildProfile {
-  return { id, name: data.name as string, birth: data.birth as string, gender: data.gender as "여" | "남" };
+  return {
+    id,
+    name: data.name as string,
+    birth: data.birth as string,
+    gender: data.gender as "여" | "남",
+    deletedAt: data.deletedAt as string | undefined,
+  };
 }
 
 function mergeChildren(a: ChildProfile[], b: ChildProfile[]) {
@@ -64,6 +82,7 @@ export function RecordsProvider({ children: rc }: { children: React.ReactNode })
   const userId = user?.id ?? null;
 
   const [list, setList] = useState<ChildProfile[]>([]);
+  const [deletedList, setDeletedList] = useState<ChildProfile[]>([]);
   const [activeId, setActiveIdState] = useState<string | null>(null);
   const [records, setRecords] = useState<GrowthRecord[]>([]);
   const [vaccines, setVaccines] = useState<Vaccine[]>([]);
@@ -71,22 +90,32 @@ export function RecordsProvider({ children: rc }: { children: React.ReactNode })
 
   const showError = (msg: string) => { setDbError(msg); setTimeout(() => setDbError(null), 4000); };
 
-  // Only re-subscribe when the user ID actually changes, not on every render where
-  // the auth provider creates a new user object with the same ID.
   useEffect(() => {
-    if (!userId) { setList([]); setRecords([]); setVaccines([]); setActiveIdState(null); return; }
+    if (!userId) { setList([]); setDeletedList([]); setRecords([]); setVaccines([]); setActiveIdState(null); return; }
 
     let memberChildren: ChildProfile[] = [];
     let legacyChildren: ChildProfile[] = [];
 
     const apply = () => {
-      const children = mergeChildren(memberChildren, legacyChildren);
-      setList(children);
+      const all = mergeChildren(memberChildren, legacyChildren);
+      const now = Date.now();
+
+      const active = all.filter((c) => !c.deletedAt);
+      const softDeleted = all.filter((c) => !!c.deletedAt);
+      const recentlyDeleted = softDeleted.filter((c) => now - new Date(c.deletedAt!).getTime() < SOFT_DELETE_MS);
+
+      // 30일 지난 항목 영구 삭제 (best-effort)
+      softDeleted
+        .filter((c) => now - new Date(c.deletedAt!).getTime() >= SOFT_DELETE_MS)
+        .forEach((c) => deleteDoc(doc(db, "children", c.id)).catch(() => {}));
+
+      setList(active);
+      setDeletedList(recentlyDeleted);
       setActiveIdState((cur) => {
-        if (cur && children.find((c) => c.id === cur)) return cur;
+        if (cur && active.find((c) => c.id === cur)) return cur;
         const saved = localStorage.getItem(ACTIVE_KEY);
-        if (saved && children.find((c) => c.id === saved)) return saved;
-        return children[0]?.id ?? null;
+        if (saved && active.find((c) => c.id === saved)) return saved;
+        return active[0]?.id ?? null;
       });
     };
 
@@ -187,7 +216,7 @@ export function RecordsProvider({ children: rc }: { children: React.ReactNode })
     });
   };
 
-  const addChild = (profile: Omit<ChildProfile, "id">) => {
+  const addChild = (profile: Omit<ChildProfile, "id" | "deletedAt">) => {
     if (!userId) return;
     const ref = doc(collection(db, "children"));
     const newChild: ChildProfile = { id: ref.id, ...profile };
@@ -204,7 +233,7 @@ export function RecordsProvider({ children: rc }: { children: React.ReactNode })
     });
   };
 
-  const updateChild = (id: string, updates: Omit<ChildProfile, "id">) => {
+  const updateChild = (id: string, updates: Omit<ChildProfile, "id" | "deletedAt">) => {
     const prev = list;
     setList((cur) => cur.map((c) => (c.id === id ? { ...c, ...updates } : c)));
     setDoc(doc(db, "children", id), { name: updates.name, birth: updates.birth, gender: updates.gender }, { merge: true }).catch((err) => {
@@ -213,15 +242,33 @@ export function RecordsProvider({ children: rc }: { children: React.ReactNode })
     });
   };
 
+  // 소프트 딜리트: deletedAt 설정, 30일 후 영구 삭제
   const deleteChild = (id: string) => {
     if (list.length <= 1) return;
-    const prev = list;
+    const child = list.find((c) => c.id === id);
+    if (!child) return;
+    const deletedAt = new Date().toISOString();
     const next = list.filter((c) => c.id !== id);
     setList(next);
+    setDeletedList((dl) => [...dl, { ...child, deletedAt }]);
     if (activeId === id && next.length > 0) { setActiveIdState(next[0].id); localStorage.setItem(ACTIVE_KEY, next[0].id); }
-    deleteDoc(doc(db, "children", id)).catch((err) => {
+    setDoc(doc(db, "children", id), { deletedAt }, { merge: true }).catch((err) => {
       console.error("[Firestore] deleteChild failed:", err);
-      setList(prev);
+      setList((cur) => [...cur, child]);
+      setDeletedList((dl) => dl.filter((c) => c.id !== id));
+    });
+  };
+
+  // 복구: deletedAt 필드 제거
+  const restoreChild = (id: string) => {
+    const child = deletedList.find((c) => c.id === id);
+    if (!child) return;
+    setDeletedList((dl) => dl.filter((c) => c.id !== id));
+    setList((cur) => [...cur, { ...child, deletedAt: undefined }]);
+    setDoc(doc(db, "children", id), { deletedAt: deleteField() }, { merge: true }).catch((err) => {
+      console.error("[Firestore] restoreChild failed:", err);
+      setList((cur) => cur.filter((c) => c.id !== id));
+      setDeletedList((dl) => [...dl, child]);
     });
   };
 
@@ -241,7 +288,12 @@ export function RecordsProvider({ children: rc }: { children: React.ReactNode })
           {dbError}
         </div>
       )}
-      <AppCtx.Provider value={{ records, addRecord, deleteRecord, updateRecord, children: list, activeChild, setActiveChild, addChild, updateChild, deleteChild, vaccines, completeVaccine, postponeVaccine }}>{rc}</AppCtx.Provider>
+      <AppCtx.Provider value={{
+        records, addRecord, deleteRecord, updateRecord,
+        children: list, deletedChildren: deletedList, activeChild,
+        setActiveChild, addChild, updateChild, deleteChild, restoreChild,
+        vaccines, completeVaccine, postponeVaccine,
+      }}>{rc}</AppCtx.Provider>
     </>
   );
 }

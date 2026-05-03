@@ -11,16 +11,19 @@ const config: FirebaseOptions = {
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
 };
 
-const missing = Object.entries(config)
-  .filter(([, value]) => !value)
-  .map(([key]) => key);
-
-if (missing.length) {
-  throw new Error(`Firebase env 누락: ${missing.join(", ")}. .env.local 또는 배포 환경변수를 확인하세요.`);
+function getFirebaseApp() {
+  const missing = Object.entries(config).filter(([, v]) => !v).map(([k]) => k);
+  if (missing.length) {
+    throw new Error(`Firebase env 누락: ${missing.join(", ")}. .env.local 또는 배포 환경변수를 확인하세요.`);
+  }
+  return getApps().length ? getApp() : initializeApp(config);
 }
 
-const app = getApps().length ? getApp() : initializeApp(config);
-
-export const auth = getAuth(app);
+// Lazy Proxy — safe to import in SSR/build; initializes only when accessed in browser
+export const auth = new Proxy({} as ReturnType<typeof getAuth>, {
+  get(_, prop) { return Reflect.get(getAuth(getFirebaseApp()), prop); },
+});
 export const provider = new GoogleAuthProvider();
-export const db = getFirestore(app);
+export const db = new Proxy({} as ReturnType<typeof getFirestore>, {
+  get(_, prop) { return Reflect.get(getFirestore(getFirebaseApp()), prop); },
+});

@@ -67,13 +67,19 @@ function ChildForm({ initial, onSave, onCancel, isAdd }: {
 }
 
 export default function SettingsPage() {
-  const { children, activeChild, setActiveChild, addChild, updateChild, deleteChild, records } = useRecords();
+  const { children, deletedChildren, activeChild, setActiveChild, addChild, updateChild, deleteChild, restoreChild, records } = useRecords();
   const { user, logout } = useAuth();
   const router = useRouter();
   const [mode, setMode] = useState<Mode>({ type: "list" });
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+
+  const daysUntilPermanent = (deletedAt: string) => {
+    const remaining = 30 - Math.floor((Date.now() - new Date(deletedAt).getTime()) / (1000 * 60 * 60 * 24));
+    return Math.max(0, remaining);
+  };
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
 
@@ -107,8 +113,12 @@ export default function SettingsPage() {
         expiresAt: expiresAt.toISOString(),
       });
       const url = `${window.location.origin}/invite?code=${code}`;
-      await navigator.clipboard.writeText(url);
-      showToast("초대 링크가 복사됐어요! (7일간 유효)");
+      try {
+        await navigator.clipboard.writeText(url);
+        showToast("초대 링크가 복사됐어요! (7일간 유효)");
+      } catch {
+        setInviteUrl(url);
+      }
     } catch (err) {
       console.error("createInviteLink failed:", err);
       showToast("초대 링크 생성에 실패했어요. Firestore 규칙을 확인해주세요.");
@@ -132,6 +142,17 @@ export default function SettingsPage() {
       {toast && (
         <div className="fixed top-4 left-1/2 z-50 -translate-x-1/2 rounded-[12px] bg-ink px-5 py-3 text-[13px] font-medium text-white shadow-lg">
           {toast}
+        </div>
+      )}
+      {inviteUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setInviteUrl(null)}>
+          <div className="w-full max-w-sm rounded-[20px] bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-1 text-[13px] font-semibold text-ink">초대 링크 생성됨</div>
+            <p className="mb-3 text-[12px] text-ink-mute">클립보드 접근이 거부됐어요. 아래 링크를 직접 복사해 공유해주세요.</p>
+            <div className="break-all rounded-[12px] border border-line bg-bg px-3 py-3 font-mono text-[11px] text-ink select-all">{inviteUrl}</div>
+            <button onClick={() => { navigator.clipboard.writeText(inviteUrl).then(() => { showToast("복사됐어요!"); setInviteUrl(null); }); }} className="mt-3 w-full rounded-[12px] bg-ink py-3 text-[13px] font-semibold text-white">복사하기</button>
+            <button onClick={() => setInviteUrl(null)} className="mt-2 w-full py-2 text-[12px] text-ink-mute">닫기</button>
+          </div>
         </div>
       )}
       <PageWrap>
@@ -228,6 +249,27 @@ export default function SettingsPage() {
                 <div className="rounded-[10px] bg-bg px-3 py-2.5 text-[11px] leading-[1.55] text-ink-mute">
                   초대받은 사람이 링크를 열고 로그인하면 {activeChild.name}의 기록에 접근할 수 있어요.
                 </div>
+              </div>
+            )}
+
+            {/* Deleted children (trash) */}
+            {deletedChildren.length > 0 && (
+              <div className="rounded-[18px] border border-line bg-card px-5 py-4 space-y-3">
+                <div className="text-[11px] tracking-[0.5px] text-ink-mute">최근 삭제됨</div>
+                {deletedChildren.map((child) => (
+                  <div key={child.id} className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-red-50 shrink-0">
+                      <Icon name="trash" size={13} color="#C26B5A" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13px] font-semibold text-ink">{child.name}</div>
+                      <div className="text-[11px] text-ink-mute">{daysUntilPermanent(child.deletedAt!)}일 후 영구 삭제</div>
+                    </div>
+                    <button onClick={() => { restoreChild(child.id); showToast(`${child.name} 복구됐어요`); }} className="rounded-[10px] border border-line bg-bg px-3 py-1.5 text-[12px] font-semibold text-ink transition hover:bg-card">
+                      복구
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
 
