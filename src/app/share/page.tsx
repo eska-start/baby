@@ -3,7 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import Link from "next/link";
-import { GrowthRecord, bmi, bmiCategory, calcAgeLabel, formatDate, shortDate } from "@/lib/data";
+import { GrowthRecord, bmi, bmiCategoryKorean, calcAgeMonths, calcAgeLabel, formatDate, shortDate } from "@/lib/data";
 import { GrowthChart } from "@/components/GrowthChart";
 
 type ShareData = {
@@ -39,7 +39,8 @@ function ShareView() {
 
   const last = data.records[data.records.length - 1];
   const bmiVal = bmi(last.height, last.weight);
-  const cat = bmiCategory(bmiVal);
+  const bmiAge = calcAgeMonths(data.birth);
+  const cat = bmiCategoryKorean(bmiVal, bmiAge, (data.gender as "남" | "여") ?? "남");
   const ageLabel = calcAgeLabel(data.birth);
 
   return (

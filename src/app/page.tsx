@@ -7,7 +7,7 @@ import { BmiGauge } from "@/components/BmiGauge";
 import { GrowthChart } from "@/components/GrowthChart";
 import { useRecords } from "@/app/providers";
 import { useAuth } from "@/app/auth-provider";
-import { bmi, bmiCategory, calcAgeLabel, diff, shortDate, smartDate } from "@/lib/data";
+import { bmi, bmiCategoryKorean, calcAgeMonths, calcAgeLabel, diff, shortDate, smartDate } from "@/lib/data";
 
 export default function HomePage() {
   const { user } = useAuth();
@@ -30,7 +30,8 @@ export default function HomePage() {
     monthAgo && last && monthAgo.date !== last.date
       ? last.height - monthAgo.height
       : null;
-  const cat = bmiVal ? bmiCategory(bmiVal) : null;
+  const bmiAge = activeChild ? calcAgeMonths(activeChild.birth) : 0;
+  const cat = bmiVal ? bmiCategoryKorean(bmiVal, bmiAge, activeChild?.gender ?? "남") : null;
   const upcoming = vaccines
     .filter((v) => v.status === "upcoming")
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
