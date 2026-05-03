@@ -137,6 +137,18 @@ export const VACCINE_SCHEDULE: VaccineScheduleItem[] = [
     ],
     isRequired: true,
   },
+  {
+    vaccineGroup: '구강검진',
+    displayName: '영유아 구강검진',
+    type: 'checkup',
+    doses: [
+      { doseNumber: 1, ageMonthMin: 18, ageMonthMax: 29, label: '1차 (생후 18~29개월)' },
+      { doseNumber: 2, ageMonthMin: 30, ageMonthMax: 41, label: '2차 (생후 30~41개월)' },
+      { doseNumber: 3, ageMonthMin: 42, ageMonthMax: 53, label: '3차 (생후 42~53개월)' },
+      { doseNumber: 4, ageMonthMin: 54, ageMonthMax: 65, label: '4차 (생후 54~65개월)' },
+    ],
+    isRequired: true,
+  },
 ];
 
 export const TIMELINE_MILESTONES = [0, 1, 2, 4, 6, 9, 12, 15, 18, 24, 36, 48, 60, 72, 132];

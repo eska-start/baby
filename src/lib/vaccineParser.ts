@@ -60,7 +60,9 @@ export function computeSchedule(
   for (const schedule of scheduleItems) {
     for (const dose of schedule.doses) {
       const dueDate = addMonths(birthDate, dose.ageMonthMin);
+      const displayEndDate = addMonths(birthDate, dose.ageMonthMax);
       const dueDateEnd = addMonths(birthDate, dose.ageMonthMax + 1);
+      const isRange = dose.ageMonthMin !== dose.ageMonthMax;
       const dd = dDays(dueDate);
 
       const completed = records.find(
@@ -96,6 +98,8 @@ export function computeSchedule(
         completedDate: completed?.completedDate,
         dueDate,
         dueDateEnd,
+        displayEndDate,
+        isRange,
         dDays: dd,
         hospital: completed?.hospital,
         isRequired: schedule.isRequired,

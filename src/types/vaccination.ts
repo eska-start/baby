@@ -55,6 +55,8 @@ export type ComputedVaccineItem = {
   completedDate?: string;
   dueDate: string;
   dueDateEnd: string;
+  displayEndDate: string;
+  isRange: boolean;
   dDays: number;
   hospital?: string;
   isRequired: boolean;

@@ -69,8 +69,10 @@ export function VaccineCard({ item, onMarkDone, onUndo }: Props) {
           <div className="mt-0.5 text-[11px] text-ink-mute">
             {item.status === "completed" && item.completedDate ? (
               <span className="ko-num">{formatDate(item.completedDate)}{item.hospital ? ` · ${item.hospital}` : ""}</span>
+            ) : item.isRange ? (
+              <span className="ko-num">{item.doseLabel} · {formatDate(item.dueDate)} ~ {formatDate(item.displayEndDate)}</span>
             ) : (
-              <span className="ko-num">{item.doseLabel} · {formatDate(item.dueDate)}까지</span>
+              <span className="ko-num">{item.doseLabel} · 마감일 {formatDate(item.dueDate)}</span>
             )}
           </div>
         </div>
