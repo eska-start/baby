@@ -31,9 +31,18 @@ export type Checkup = {
 };
 
 export const CHECKUPS: Checkup[] = [
-  { title: "영유아 건강검진 5차", windowStart: "2024-06-01", windowEnd: "2024-12-31", status: "done", detail: "양호 · 2024.08.12 시행" },
-  { title: "영유아 건강검진 6차", windowStart: "2026-05-25", windowEnd: "2026-12-15", status: "upcoming", detail: "54-60개월 구간" },
-  { title: "구강검진 3차", windowStart: "2026-08-01", windowEnd: "2026-11-30", status: "upcoming" },
+  { title: "영유아 건강검진 1차", windowStart: "2021-07-01", windowEnd: "2021-08-31", status: "done", detail: "생후 14~35일" },
+  { title: "영유아 건강검진 2차", windowStart: "2021-11-01", windowEnd: "2022-03-31", status: "done", detail: "생후 4~6개월" },
+  { title: "영유아 건강검진 3차", windowStart: "2022-04-01", windowEnd: "2022-08-31", status: "done", detail: "생후 9~12개월" },
+  { title: "영유아 건강검진 4차", windowStart: "2022-09-01", windowEnd: "2023-03-31", status: "done", detail: "생후 18~24개월" },
+  { title: "영유아 구강검진 1차", windowStart: "2022-09-01", windowEnd: "2023-03-31", status: "done", detail: "생후 18~29개월" },
+  { title: "영유아 건강검진 5차", windowStart: "2023-03-01", windowEnd: "2023-10-31", status: "done", detail: "생후 30~36개월" },
+  { title: "영유아 구강검진 2차", windowStart: "2023-03-01", windowEnd: "2023-10-31", status: "done", detail: "생후 30~41개월" },
+  { title: "영유아 건강검진 6차", windowStart: "2024-01-01", windowEnd: "2024-08-31", status: "done", detail: "생후 42~48개월" },
+  { title: "영유아 구강검진 3차", windowStart: "2024-01-01", windowEnd: "2024-08-31", status: "done", detail: "생후 42~53개월" },
+  { title: "영유아 건강검진 7차", windowStart: "2025-01-01", windowEnd: "2025-08-31", status: "done", detail: "생후 54~60개월" },
+  { title: "영유아 구강검진 4차", windowStart: "2025-01-01", windowEnd: "2025-08-31", status: "done", detail: "생후 54~65개월" },
+  { title: "영유아 건강검진 8차", windowStart: "2026-01-01", windowEnd: "2026-08-31", status: "upcoming", detail: "생후 66~71개월" },
 ];
 
 export function bmi(heightCm: number, weightKg: number) {
