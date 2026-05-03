@@ -7,7 +7,7 @@ import { BmiGauge } from "@/components/BmiGauge";
 import { GrowthChart } from "@/components/GrowthChart";
 import { useRecords } from "@/app/providers";
 import { useAuth } from "@/app/auth-provider";
-import { bmi, bmiCategory, calcAgeLabel, diff, shortDate } from "@/lib/data";
+import { bmi, bmiCategory, calcAgeLabel, diff, shortDate, smartDate } from "@/lib/data";
 
 export default function HomePage() {
   const { user } = useAuth();
@@ -15,8 +15,21 @@ export default function HomePage() {
 
   const last = records[records.length - 1];
   const prev = records[records.length - 2];
-  const monthAgo = records[records.length - 5] ?? records[0];
   const bmiVal = last ? bmi(last.height, last.weight) : null;
+
+  // 30일 전에 가장 가까운 기록 (없으면 첫 기록)
+  const thirtyDaysAgo = last ? new Date(last.date) : new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const monthAgo = last
+    ? ([...records]
+        .filter((r) => new Date(r.date).getTime() <= thirtyDaysAgo.getTime())
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0] ??
+        records[0])
+    : null;
+  const monthHeightDiff =
+    monthAgo && last && monthAgo.date !== last.date
+      ? last.height - monthAgo.height
+      : null;
   const cat = bmiVal ? bmiCategory(bmiVal) : null;
   const upcoming = vaccines
     .filter((v) => v.status === "upcoming")
@@ -134,7 +147,7 @@ export default function HomePage() {
                   value={last.height.toFixed(1)}
                   unit="cm"
                   delta={prev ? diff(last.height, prev.height) : undefined}
-                  sub="이번 주"
+                  sub="최근 측정 대비"
                   color="#5C7A5C"
                 />
                 <StatCard
@@ -142,14 +155,14 @@ export default function HomePage() {
                   value={last.weight.toFixed(1)}
                   unit="kg"
                   delta={prev ? diff(last.weight, prev.weight) : undefined}
-                  sub="이번 주"
+                  sub="최근 측정 대비"
                   color="#5C7A5C"
                 />
                 <StatCard
-                  label="이번 달 키 증가"
-                  value={monthAgo && monthAgo !== last ? diff(last.height, monthAgo.height) : "—"}
+                  label="최근 한 달 키"
+                  value={monthHeightDiff !== null ? diff(last.height, monthAgo!.height) : "—"}
                   unit="cm"
-                  sub="최근 기록 기준"
+                  sub={monthAgo && monthHeightDiff !== null ? `${smartDate(monthAgo.date)} 기준` : "30일 이내 비교 기록 없음"}
                   color="#D77B50"
                   tone="accent"
                 />
@@ -185,7 +198,7 @@ export default function HomePage() {
                 <GrowthChart metric="height" height={220} />
                 <div className="mt-2 flex justify-between px-2 text-[10px] text-ink-mute">
                   {records.map((r) => (
-                    <span key={r.date}>{shortDate(r.date)}</span>
+                    <span key={r.date}>{smartDate(r.date)}</span>
                   ))}
                 </div>
               </div>
@@ -213,8 +226,8 @@ export default function HomePage() {
                         key={r.date}
                         className={`flex items-center gap-3 py-2.5 ${i > 0 ? "border-t border-line" : ""}`}
                       >
-                        <div className="ko-num w-14 font-mono text-[11px] text-ink-mute">
-                          {shortDate(r.date)}
+                        <div className="ko-num w-16 font-mono text-[11px] text-ink-mute">
+                          {smartDate(r.date)}
                         </div>
                         <div className="flex flex-1 gap-3.5">
                           <span className="ko-num text-[13px] font-medium text-ink">

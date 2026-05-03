@@ -64,6 +64,13 @@ export function shortDate(d: string) {
   return `${Number(m)}/${Number(day)}`;
 }
 
+export function smartDate(d: string) {
+  const [y, m, day] = d.split("-");
+  const currentYear = new Date().getFullYear();
+  const prefix = Number(y) !== currentYear ? `'${String(y).slice(2)} ` : "";
+  return `${prefix}${Number(m)}/${Number(day)}`;
+}
+
 export function calcAgeLabel(birth: string): string {
   const b = new Date(birth);
   const now = new Date();

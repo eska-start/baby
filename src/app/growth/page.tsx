@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { BottomNav, MobileTopBar, PageWrap, TopBar } from "@/components/AppShell";
 import { Icon } from "@/components/Icon";
 import { GrowthChart } from "@/components/GrowthChart";
-import { GrowthRecord, bmi, formatDate, shortDate } from "@/lib/data";
+import { GrowthRecord, bmi, formatDate, shortDate, smartDate } from "@/lib/data";
 import { useRecords } from "@/app/providers";
 
 const PERIODS = ["주간", "월간", "연간"] as const;
@@ -89,9 +89,9 @@ export default function GrowthPage() {
   const totalWeightDelta = first && first.date !== last.date ? last.weight - first.weight : null;
   const bmiVal = bmi(last.height, last.weight);
 
-  const prevSub = prev ? shortDate(prev.date) + " 기준" : "";
-  const yearSub = actualYearBase ? shortDate(actualYearBase.date) + " 기준" : "1년 이상 데이터 필요";
-  const totalSub = first && first.date !== last.date ? shortDate(first.date) + " 기준" : "";
+  const prevSub = prev ? smartDate(prev.date) + " 기준" : "";
+  const yearSub = actualYearBase ? smartDate(actualYearBase.date) + " 기준" : "1년 이상 데이터 필요";
+  const totalSub = first && first.date !== last.date ? smartDate(first.date) + " 기준" : "";
 
   return (
     <>
@@ -170,7 +170,7 @@ export default function GrowthPage() {
           </div>
           <GrowthChart metric={metric} height={300} />
           <div className="mt-2 hidden md:flex justify-between px-2 text-[10px] text-ink-mute">
-            {GROWTH_RECORDS.map((r) => <span key={r.date}>{shortDate(r.date)}</span>)}
+            {GROWTH_RECORDS.map((r) => <span key={r.date}>{smartDate(r.date)}</span>)}
           </div>
         </section>
 
