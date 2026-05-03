@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { BottomNav, MobileTopBar, PageWrap, TopBar } from "@/components/AppShell";
 import { Icon } from "@/components/Icon";
 import { GrowthChart } from "@/components/GrowthChart";
-import { GrowthRecord, bmi, bmiCategoryKorean, calcAgeMonths, formatDate, shortDate, smartDate } from "@/lib/data";
+import { GrowthRecord, bmi, bmiCategory, formatDate, shortDate, smartDate } from "@/lib/data";
 import { useRecords } from "@/app/providers";
 
 const PERIODS = ["주간", "월간", "연간"] as const;
@@ -88,10 +88,7 @@ export default function GrowthPage() {
   const totalHeightDelta = first && first.date !== last.date ? last.height - first.height : null;
   const totalWeightDelta = first && first.date !== last.date ? last.weight - first.weight : null;
   const bmiVal = bmi(last.height, last.weight);
-  const bmiAge = profile?.birth ? calcAgeMonths(profile.birth) : 0;
-  const bmiCat = profile?.birth
-    ? bmiCategoryKorean(bmiVal, bmiAge, profile.gender ?? "남")
-    : { label: "—", color: "#8B8377", bg: "#F0EDE6" };
+  const bmiCat = bmiCategory(bmiVal);
 
   const PERIOD_DAYS: Record<Period, number> = { 주간: 90, 월간: 365, 연간: Infinity };
   const periodDays = PERIOD_DAYS[period];
