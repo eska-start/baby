@@ -46,9 +46,10 @@ function DDayChip({ item }: { item: ComputedVaccineItem }) {
 type Props = {
   item: ComputedVaccineItem;
   onMarkDone?: (item: ComputedVaccineItem) => void;
+  onUndo?: (item: ComputedVaccineItem) => void;
 };
 
-export function VaccineCard({ item, onMarkDone }: Props) {
+export function VaccineCard({ item, onMarkDone, onUndo }: Props) {
   const cfg = STATUS_CONFIG[item.status];
 
   return (
@@ -76,6 +77,15 @@ export function VaccineCard({ item, onMarkDone }: Props) {
       </div>
       <div className="flex items-center gap-2">
         <DDayChip item={item} />
+        {item.status === "completed" && onUndo && (
+          <button
+            onClick={() => onUndo(item)}
+            className="flex h-6 w-6 items-center justify-center rounded-[6px] border border-line bg-bg transition hover:border-[#F59E0B] hover:bg-warn-soft"
+            title="완료 취소"
+          >
+            <Icon name="undo" size={11} color="#8B8377" strokeWidth={2} />
+          </button>
+        )}
         {item.status !== "completed" && onMarkDone && (
           <button
             onClick={() => onMarkDone(item)}
@@ -95,9 +105,10 @@ type GroupCardProps = {
   displayName: string;
   items: ComputedVaccineItem[];
   onMarkDone?: (item: ComputedVaccineItem) => void;
+  onUndo?: (item: ComputedVaccineItem) => void;
 };
 
-export function VaccineGroupCard({ vaccineGroup, displayName, items, onMarkDone }: GroupCardProps) {
+export function VaccineGroupCard({ vaccineGroup, displayName, items, onMarkDone, onUndo }: GroupCardProps) {
   const completedCount = items.filter((i) => i.status === "completed").length;
   const hasOverdue = items.some((i) => i.status === "overdue");
   const hasUpcoming = items.some((i) => i.status === "upcoming");
@@ -130,7 +141,7 @@ export function VaccineGroupCard({ vaccineGroup, displayName, items, onMarkDone 
       </div>
       <div className="space-y-2">
         {items.map((item) => (
-          <VaccineCard key={`${item.vaccineGroup}-${item.doseNumber}`} item={item} onMarkDone={onMarkDone} />
+          <VaccineCard key={`${item.vaccineGroup}-${item.doseNumber}`} item={item} onMarkDone={onMarkDone} onUndo={onUndo} />
         ))}
       </div>
     </div>

@@ -33,6 +33,15 @@ export function ScheduleTab({ childId, birthDate }: Props) {
     reload();
   }, [reload, tick]);
 
+  const undoDone = (item: ComputedVaccineItem) => {
+    const records = loadVaxRecords(childId);
+    const filtered = records.filter(
+      (r) => !(r.vaccineGroup === item.vaccineGroup && r.doseNumber === item.doseNumber)
+    );
+    saveVaxRecords(childId, filtered);
+    setTick((t) => t + 1);
+  };
+
   const markDone = (item: ComputedVaccineItem) => {
     const records = loadVaxRecords(childId);
     const today = new Date();
@@ -199,6 +208,7 @@ export function ScheduleTab({ childId, birthDate }: Props) {
                     <VaccineCard
                       key={`${item.vaccineGroup}-${item.doseNumber}`}
                       item={item}
+                      onUndo={undoDone}
                     />
                   ))}
               </div>
@@ -224,6 +234,7 @@ export function ScheduleTab({ childId, birthDate }: Props) {
               displayName={g.displayName}
               items={g.items}
               onMarkDone={markDone}
+              onUndo={undoDone}
             />
           ))}
         </div>

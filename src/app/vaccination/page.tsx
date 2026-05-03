@@ -17,6 +17,8 @@ export default function VaccinationPage() {
     setTab("schedule");
   };
 
+  if (!activeChild) return null;
+
   return (
     <>
       <TopBar />

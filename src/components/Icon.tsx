@@ -189,6 +189,13 @@ export function Icon({ name, size = 16, color = "currentColor", strokeWidth = 1.
           <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
         </svg>
       );
+    case "undo":
+      return (
+        <svg {...common}>
+          <path d="M3 7v6h6" />
+          <path d="M3 13a9 9 0 1 0 2.6-6.4L3 9" />
+        </svg>
+      );
     case "plus":
       return (
         <svg {...common}>

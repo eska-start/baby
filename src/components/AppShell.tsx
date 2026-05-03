@@ -57,7 +57,7 @@ export function TopBar() {
         >
           <Icon name="flower" size={13} color="#1F1A14" />
         </div>
-        <span className="text-[13px] font-medium text-ink">{profile.name}</span>
+        <span className="text-[13px] font-medium text-ink">{profile?.name}</span>
         <Icon name="chevron-down" size={13} color="#8B8377" />
       </Link>
     </header>
@@ -143,7 +143,9 @@ export function PageWrap({ children }: { children: React.ReactNode }) {
 export function ChildSwitcher() {
   const { children, activeChild, setActiveChild } = useRecords();
   const [open, setOpen] = useState(false);
-  const ageLabel = calcAgeLabel(activeChild.birth);
+  const ageLabel = activeChild ? calcAgeLabel(activeChild.birth) : "";
+
+  if (!activeChild) return null;
 
   return (
     <div className="md:hidden mb-4 mt-1 relative">
