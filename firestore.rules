@@ -31,8 +31,15 @@ service cloud.firestore {
       allow create: if request.auth != null &&
         request.auth.uid in request.resource.data.memberIds;
 
-      // Update: only existing members
-      allow update: if isMember(childId);
+      // Update: existing members, OR self-join via valid invite (add own UID to memberIds only)
+      allow update: if isMember(childId) || (
+        request.auth != null &&
+        // The only change is appending the caller's own UID to memberIds
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds']) &&
+        request.resource.data.memberIds.hasAll(resource.data.memberIds) &&
+        request.resource.data.memberIds.size() == resource.data.memberIds.size() + 1 &&
+        request.auth.uid in request.resource.data.memberIds
+      );
 
       // Delete: only the owner
       allow delete: if request.auth != null && (

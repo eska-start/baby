@@ -84,7 +84,7 @@ function InviteView() {
           로그인하면 함께 성장을 기록할 수 있어요.
         </p>
         <Link
-          href={`/login?next=/invite?code=${code}`}
+          href={`/login?next=${encodeURIComponent(`/invite?code=${code}`)}`}
           className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-[14px] bg-ink py-3.5 text-[14px] font-semibold text-white"
         >
           로그인하고 참여하기

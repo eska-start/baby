@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/app/auth-provider";
@@ -35,7 +35,7 @@ function GoogleIcon() {
   );
 }
 
-export default function LoginPage() {
+function LoginForm() {
   const { user, isLoading, loginWithGoogle, loginWithEmail } = useAuth();
   const router = useRouter();
   const params = useSearchParams();
@@ -108,5 +108,13 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-[#F4F0E9]"><div className="h-8 w-8 animate-spin rounded-full border-4 border-[#DDE5C8] border-t-[#E08961]" /></div>}>
+      <LoginForm />
+    </Suspense>
   );
 }
