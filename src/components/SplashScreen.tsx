@@ -2,7 +2,7 @@
 import { useEffect } from "react";
 export function SplashScreen({ onDone }: { onDone: () => void }) {
   useEffect(() => {
-    const t = setTimeout(() => onDone(), 1600);
+    const t = setTimeout(() => onDone(), 800);
     return () => clearTimeout(t);
   }, [onDone]);
   return (
