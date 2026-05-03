@@ -1,8 +1,8 @@
 export function AikiLogo({ size = "md", className = "" }: { size?: "sm" | "md" | "lg"; className?: string; }) {
-  const markSize = size === "lg" ? "w-[160px]" : size === "sm" ? "w-20" : "w-28";
+  const markSize = size === "lg" ? "w-[200px]" : size === "sm" ? "w-20" : "w-32";
   return (
     <div className={`flex justify-center ${className}`}>
-      <img src="/aiki-new.svg" className={`${markSize}`} />
+      <img src="/aiki-splash-original.svg" className={`${markSize}`} />
     </div>
   );
 }
