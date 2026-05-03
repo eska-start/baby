@@ -4,7 +4,6 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/app/auth-provider";
-import { AikiLogo } from "@/components/AikiLogo";
 
 function MailIcon() {
   return (
@@ -49,63 +48,17 @@ function LoginForm() {
     if (!isLoading && user) router.replace(next);
   }, [isLoading, user, router, next]);
 
-  const handleEmailLogin = async () => {
-    setLoading(true);
-    setError("");
-    const result = await loginWithEmail(email.trim(), password);
-    if (!result.ok) {
-      setError(result.error ?? "로그인 중 오류가 발생했어요.");
-      setLoading(false);
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    setLoading(true);
-    setError("");
-    const result = await loginWithGoogle();
-    if (!result.ok) {
-      setError(result.error ?? "로그인 중 오류가 발생했어요.");
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#F4F0E9] px-5 py-8">
-      <div className="pointer-events-none absolute -left-20 top-12 h-64 w-64 rounded-full bg-[#DDE5C8]/55 blur-3xl" />
-      <div className="pointer-events-none absolute -right-24 bottom-10 h-72 w-72 rounded-full bg-[#EFC5A9]/45 blur-3xl" />
-      <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-[38%] rounded-t-[48%] bg-[#ECE7DC]" />
-
       <div className="relative w-full max-w-[390px] rounded-[34px] border border-white/70 bg-[#FBF8F1]/90 px-7 pb-7 pt-8 shadow-[0_26px_70px_rgba(103,88,70,0.18)] backdrop-blur">
-        <AikiLogo size="lg" />
-
-        {error && <div className="mb-4 rounded-[14px] bg-red-50 px-4 py-3 text-[12px] leading-relaxed text-red-500">{error}</div>}
-
-        <div className="space-y-3">
-          <label className="flex items-center gap-3 rounded-[18px] border border-[#E7DED1] bg-white px-4 py-3.5 text-[#AAA093] shadow-[0_8px_20px_rgba(127,112,92,0.06)]">
-            <MailIcon />
-            <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="이메일 주소" className="min-w-0 flex-1 bg-transparent text-[15px] font-medium text-[#4E4438] outline-none placeholder:text-[#B4A99B]" />
-          </label>
-
-          <label className="flex items-center gap-3 rounded-[18px] border border-[#E7DED1] bg-white px-4 py-3.5 text-[#AAA093] shadow-[0_8px_20px_rgba(127,112,92,0.06)]">
-            <LockIcon />
-            <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="비밀번호" className="min-w-0 flex-1 bg-transparent text-[15px] font-medium text-[#4E4438] outline-none placeholder:text-[#B4A99B]" />
-          </label>
+        <div className="flex justify-center mb-6">
+          <img src="/aiki-logo.svg" style={{ width: 180 }} />
         </div>
 
-        <button type="button" onClick={handleEmailLogin} disabled={loading} className="mt-5 w-full rounded-[20px] bg-gradient-to-r from-[#F0AF89] to-[#E58A61] py-4 text-[17px] font-bold text-white shadow-[0_14px_28px_rgba(219,132,91,0.28)] transition active:scale-[0.99] disabled:opacity-60">
-          {loading ? "로그인 중..." : "로그인"}
-        </button>
+        <input placeholder="이메일" className="mb-3 w-full p-3 rounded" />
+        <input placeholder="비밀번호" className="mb-4 w-full p-3 rounded" />
 
-        <div className="my-6 flex items-center gap-3 text-[13px] font-medium text-[#B2A797]"><div className="h-px flex-1 bg-[#E4DCCE]" /><span>또는</span><div className="h-px flex-1 bg-[#E4DCCE]" /></div>
-
-        <button type="button" onClick={handleGoogleLogin} disabled={loading} className="flex w-full items-center justify-center gap-3 rounded-[18px] border border-[#E7DED1] bg-white py-4 text-[15px] font-bold text-[#4B4136] shadow-[0_10px_24px_rgba(127,112,92,0.08)] transition active:scale-[0.99] disabled:opacity-60">
-          <GoogleIcon />
-          구글로 로그인
-        </button>
-
-        <p className="mt-7 text-center text-[14px] font-medium text-[#958A7D]">
-          계정이 없으신가요? <Link href="/signup" className="font-bold text-[#E08961]">회원가입</Link>
-        </p>
+        <button className="w-full bg-black text-white py-3 rounded">로그인</button>
       </div>
     </div>
   );
@@ -113,7 +66,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-[#F4F0E9]"><div className="h-8 w-8 animate-spin rounded-full border-4 border-[#DDE5C8] border-t-[#E08961]" /></div>}>
+    <Suspense fallback={null}>
       <LoginForm />
     </Suspense>
   );
