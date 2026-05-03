@@ -52,7 +52,7 @@ function LoginForm() {
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#F4F0E9] px-5 py-8">
       <div className="relative w-full max-w-[390px] rounded-[34px] border border-white/70 bg-[#FBF8F1]/90 px-7 pb-7 pt-8 shadow-[0_26px_70px_rgba(103,88,70,0.18)] backdrop-blur">
         <div className="flex justify-center mb-6">
-          <img src="/aiki-logo.svg" style={{ width: 180 }} />
+          <img src="/aiki-logo.svg" style={{ width: 135 }} />
         </div>
 
         <input placeholder="이메일" className="mb-3 w-full p-3 rounded" />
