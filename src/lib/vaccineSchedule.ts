@@ -6,7 +6,7 @@ export const VACCINE_SCHEDULE: VaccineScheduleItem[] = [
     displayName: 'BCG (결핵)',
     type: 'vaccination',
     doses: [
-      { doseNumber: 1, ageMonthMin: 1, ageMonthMax: 1, label: '생후 4주 이내' },
+      { doseNumber: 1, ageMonthMin: 0, ageMonthMax: 0, label: '생후 4주 이내', showRange: true },
     ],
     isRequired: true,
   },

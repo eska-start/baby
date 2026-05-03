@@ -19,6 +19,7 @@ export type VaccineDose = {
   ageMonthMin: number;
   ageMonthMax: number;
   label: string;
+  showRange?: boolean;
 };
 
 export type VaccineScheduleItem = {

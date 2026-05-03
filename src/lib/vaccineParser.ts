@@ -70,7 +70,7 @@ export function computeSchedule(
       const dueDate = addMonths(birthDate, dose.ageMonthMin);
       const displayEndDate = windowEnd(birthDate, dose.ageMonthMax);
       const dueDateEnd = addMonths(birthDate, dose.ageMonthMax + 1);
-      const isRange = dose.ageMonthMin !== dose.ageMonthMax;
+      const isRange = dose.showRange ?? (dose.ageMonthMin !== dose.ageMonthMax);
       const dd = dDays(dueDate);
 
       const completed = records.find(
