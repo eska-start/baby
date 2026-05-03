@@ -68,7 +68,7 @@ export default function RecordPage() {
         </div>
 
         <div className="md:hidden px-2 pt-2">
-          <div className="mb-1 text-[11px] tracking-[0.5px] text-ink-mute">{activeChild.name}</div>
+          <div className="mb-1 text-[11px] tracking-[0.5px] text-ink-mute">{activeChild?.name}</div>
           <div className="font-serif text-[22px] font-medium text-ink">오늘 측정값을 입력해주세요</div>
           {last && (
             <div className="mt-1 text-[12px] text-ink-mute">
