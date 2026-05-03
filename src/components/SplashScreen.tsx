@@ -7,7 +7,7 @@ export function SplashScreen({ onDone }: { onDone: () => void }) {
   }, [onDone]);
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#F6F1E8]">
-      <img src="/aiki-splash-login.svg" style={{ width: 220 }} />
+      <img src="/aiki-new.svg" style={{ width: 220 }} />
     </div>
   );
 }
