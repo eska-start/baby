@@ -42,10 +42,61 @@ export function bmi(heightCm: number, weightKg: number) {
 }
 
 export function bmiCategory(value: number): { label: string; color: string; bg: string } {
-  if (value < 14) return { label: "저체중", color: "#5478A1", bg: "#DDE8F2" };
-  if (value < 17) return { label: "정상 범위", color: "#5C7A5C", bg: "#E5EFE3" };
-  if (value < 18.5) return { label: "과체중", color: "#C49B3A", bg: "#F5EAC4" };
+  if (value < 18.5) return { label: "저체중", color: "#5478A1", bg: "#DDE8F2" };
+  if (value < 23) return { label: "정상 범위", color: "#5C7A5C", bg: "#E5EFE3" };
+  if (value < 25) return { label: "과체중", color: "#C49B3A", bg: "#F5EAC4" };
   return { label: "비만", color: "#C26B5A", bg: "#F4D5CD" };
+}
+
+// 2017 Korean National Growth Chart BMI percentiles (P5, P85, P95)
+// age in months → [P5, P85, P95]
+const BMI_BOYS: [number, number, number, number][] = [
+  [24,  13.97, 17.83, 19.06], [30,  13.73, 17.29, 18.44], [36,  13.57, 16.97, 18.08],
+  [42,  13.43, 16.73, 17.82], [48,  13.29, 16.55, 17.63], [54,  13.15, 16.47, 17.54],
+  [60,  13.04, 16.42, 17.50], [72,  12.95, 16.53, 17.72], [84,  12.97, 16.84, 18.17],
+  [96,  13.14, 17.36, 18.93], [108, 13.46, 18.05, 19.87], [120, 13.82, 18.85, 20.96],
+  [132, 14.23, 19.71, 22.06], [144, 14.69, 20.58, 23.09], [156, 15.18, 21.42, 24.00],
+  [168, 15.71, 22.18, 24.77], [180, 16.22, 22.80, 25.35], [192, 16.63, 23.27, 25.73],
+  [204, 16.93, 23.55, 25.95], [216, 17.11, 23.71, 26.06],
+];
+const BMI_GIRLS: [number, number, number, number][] = [
+  [24,  13.68, 17.79, 19.16], [30,  13.47, 17.30, 18.59], [36,  13.33, 16.96, 18.18],
+  [42,  13.19, 16.70, 17.90], [48,  13.07, 16.52, 17.73], [54,  12.97, 16.43, 17.65],
+  [60,  12.89, 16.43, 17.69], [72,  12.83, 16.62, 18.02], [84,  12.91, 17.01, 18.62],
+  [96,  13.13, 17.63, 19.48], [108, 13.50, 18.51, 20.67], [120, 13.92, 19.53, 21.98],
+  [132, 14.39, 20.62, 23.28], [144, 14.89, 21.68, 24.44], [156, 15.41, 22.61, 25.39],
+  [168, 15.96, 23.28, 26.07], [180, 16.51, 23.63, 26.43], [192, 16.99, 23.78, 26.56],
+  [204, 17.37, 23.84, 26.55], [216, 17.61, 23.82, 26.49],
+];
+
+function interpBmi(table: [number, number, number, number][], ageMonths: number): [number, number, number] {
+  const clamped = Math.max(table[0][0], Math.min(table[table.length - 1][0], ageMonths));
+  let i = table.findIndex(([m]) => m >= clamped);
+  if (i <= 0) i = 1;
+  const [m0, p5a, p85a, p95a] = table[i - 1];
+  const [m1, p5b, p85b, p95b] = table[i];
+  const t = (clamped - m0) / (m1 - m0);
+  return [p5a + t * (p5b - p5a), p85a + t * (p85b - p85a), p95a + t * (p95b - p95a)];
+}
+
+export function bmiCategoryKorean(
+  value: number,
+  ageMonths: number,
+  gender: "남" | "여",
+): { label: string; color: string; bg: string } {
+  if (ageMonths < 24) return bmiCategory(value);
+  const table = gender === "남" ? BMI_BOYS : BMI_GIRLS;
+  const [p5, p85, p95] = interpBmi(table, ageMonths);
+  if (value < p5)  return { label: "저체중", color: "#5478A1", bg: "#DDE8F2" };
+  if (value < p85) return { label: "정상 범위", color: "#5C7A5C", bg: "#E5EFE3" };
+  if (value < p95) return { label: "과체중", color: "#C49B3A", bg: "#F5EAC4" };
+  return { label: "비만", color: "#C26B5A", bg: "#F4D5CD" };
+}
+
+export function calcAgeMonths(birth: string): number {
+  const b = new Date(birth);
+  const now = new Date();
+  return (now.getFullYear() - b.getFullYear()) * 12 + (now.getMonth() - b.getMonth());
 }
 
 export function diff(curr: number, prev: number, digits = 1) {

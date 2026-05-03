@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { BottomNav, MobileTopBar, PageWrap, TopBar } from "@/components/AppShell";
 import { Icon } from "@/components/Icon";
 import { GrowthChart } from "@/components/GrowthChart";
-import { GrowthRecord, bmi, formatDate, shortDate, smartDate } from "@/lib/data";
+import { GrowthRecord, bmi, bmiCategoryKorean, calcAgeMonths, formatDate, shortDate, smartDate } from "@/lib/data";
 import { useRecords } from "@/app/providers";
 
 const PERIODS = ["주간", "월간", "연간"] as const;
@@ -88,6 +88,18 @@ export default function GrowthPage() {
   const totalHeightDelta = first && first.date !== last.date ? last.height - first.height : null;
   const totalWeightDelta = first && first.date !== last.date ? last.weight - first.weight : null;
   const bmiVal = bmi(last.height, last.weight);
+  const bmiAge = profile?.birth ? calcAgeMonths(profile.birth) : 0;
+  const bmiCat = profile?.birth
+    ? bmiCategoryKorean(bmiVal, bmiAge, profile.gender ?? "남")
+    : { label: "—", color: "#8B8377", bg: "#F0EDE6" };
+
+  const PERIOD_DAYS: Record<Period, number> = { 주간: 90, 월간: 365, 연간: Infinity };
+  const periodDays = PERIOD_DAYS[period];
+  const lastDate = new Date(last.date);
+  const filteredForChart = periodDays === Infinity
+    ? GROWTH_RECORDS
+    : GROWTH_RECORDS.filter(r => (lastDate.getTime() - new Date(r.date).getTime()) / 86400000 <= periodDays);
+  const chartRecords = filteredForChart.length >= 2 ? filteredForChart : GROWTH_RECORDS.slice(-2);
 
   const prevSub = prev ? smartDate(prev.date) + " 기준" : "";
   const yearSub = actualYearBase ? smartDate(actualYearBase.date) + " 기준" : "1년 이상 데이터 필요";
@@ -142,7 +154,7 @@ export default function GrowthPage() {
         <section className="mt-4 grid grid-cols-2 gap-3 md:mt-6 md:grid-cols-4 md:gap-4">
           <SummaryCard label="현재 키" value={last.height.toFixed(1)} unit="cm" sub="최근 기록" tone="good" />
           <SummaryCard label="현재 몸무게" value={last.weight.toFixed(1)} unit="kg" sub="최근 기록" tone="good" />
-          <SummaryCard label="BMI" value={bmiVal.toFixed(1)} unit="" sub="최근 기록" tone="good" />
+          <SummaryCard label="BMI" value={bmiVal.toFixed(1)} unit="" sub={bmiCat.label} tone="good" bmiCat={bmiCat} />
           <SummaryCard label="월 평균 성장" value={monthlyAverageLabel} unit={monthlyAverage === null ? "" : "cm/월"} sub={monthlyAverageSub} tone="accent" />
         </section>
 
@@ -168,9 +180,9 @@ export default function GrowthPage() {
               ))}
             </div>
           </div>
-          <GrowthChart metric={metric} height={300} />
+          <GrowthChart metric={metric} height={300} records={chartRecords} />
           <div className="mt-2 hidden md:flex justify-between px-2 text-[10px] text-ink-mute">
-            {GROWTH_RECORDS.map((r) => <span key={r.date}>{smartDate(r.date)}</span>)}
+            {chartRecords.map((r) => <span key={r.date}>{smartDate(r.date)}</span>)}
           </div>
         </section>
 
@@ -206,5 +218,5 @@ function EditModal({ record, onSave, onClose }: { record: GrowthRecord; onSave: 
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <div className="rounded-[12px] border border-line bg-bg px-4 py-3"><div className="mb-1 text-[10px] tracking-[0.5px] text-ink-mute">{label}</div>{children}</div>; }
-function SummaryCard({ label, value, unit, sub, tone }: { label: string; value: string; unit: string; sub: string; tone: "good" | "accent" }) { const color = tone === "good" ? "#5C7A5C" : "#D77B50"; return <div className="rounded-[14px] border border-line bg-card px-4 py-4 md:px-5"><div className="mb-2 text-[11px] text-ink-mute">{label}</div><div className="flex items-baseline gap-1"><span className="ko-num font-serif text-[26px] font-medium text-ink md:text-[30px]">{value}</span><span className="text-[12px] text-ink-mute">{unit}</span></div><div className="mt-1.5 text-[11px] font-medium" style={{ color }}>{sub}</div></div>; }
+function SummaryCard({ label, value, unit, sub, tone, bmiCat }: { label: string; value: string; unit: string; sub: string; tone: "good" | "accent"; bmiCat?: { label: string; color: string; bg: string } }) { const color = bmiCat ? bmiCat.color : tone === "good" ? "#5C7A5C" : "#D77B50"; const bg = bmiCat ? bmiCat.bg : undefined; return <div className="rounded-[14px] border border-line bg-card px-4 py-4 md:px-5"><div className="mb-2 text-[11px] text-ink-mute">{label}</div><div className="flex items-baseline gap-1"><span className="ko-num font-serif text-[26px] font-medium text-ink md:text-[30px]">{value}</span><span className="text-[12px] text-ink-mute">{unit}</span></div><div className="mt-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium inline-block" style={{ color, background: bg ?? "transparent" }}>{sub}</div></div>; }
 function DeltaStrip({ label, sub, valueH, valueW }: { label: string; sub?: string; valueH: string; valueW: string }) { return <div className="rounded-[14px] border border-line bg-card px-4 py-3.5"><div className="text-[10px] uppercase tracking-[0.5px] text-ink-mute">{label}</div>{sub && <div className="ko-num text-[9px] text-ink-mute/70 mt-0.5 truncate">{sub}</div>}<div className="ko-num mt-1.5 flex items-baseline gap-1.5"><Icon name="ruler" size={14} color="#D77B50" /><span className="text-[13px] font-semibold text-ink">{valueH}</span></div><div className="ko-num mt-0.5 flex items-baseline gap-1.5"><Icon name="scale" size={14} color="#8B8377" /><span className="text-[12px] text-ink-soft">{valueW}</span></div></div>; }
