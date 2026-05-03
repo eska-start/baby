@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, updateDoc, arrayUnion, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/app/auth-provider";
 import { Icon } from "@/components/Icon";
@@ -15,7 +15,7 @@ type InviteData = {
   expiresAt: string;
 };
 
-type Status = "loading" | "valid" | "expired" | "invalid" | "joining" | "joined" | "already";
+type Status = "loading" | "valid" | "expired" | "invalid" | "joining" | "joined" | "already" | "error";
 
 function InviteView() {
   const params = useSearchParams();
@@ -48,25 +48,18 @@ function InviteView() {
     setStatus("joining");
     try {
       const childRef = doc(db, "children", invite.childId);
-      const childSnap = await getDoc(childRef);
-      if (!childSnap.exists()) { setStatus("invalid"); return; }
-      const data = childSnap.data() as { memberIds?: string[] };
-      const memberIds: string[] = Array.isArray(data.memberIds) ? data.memberIds : [];
-
-      if (memberIds.includes(user.id)) {
-        setStatus("already");
-        return;
-      }
-
-      await setDoc(childRef, { memberIds: [...memberIds, user.id] }, { merge: true });
+      // arrayUnion adds the user without needing to read the document first,
+      // which is necessary since the invitee isn't yet in memberIds (no read permission yet)
+      await updateDoc(childRef, { memberIds: arrayUnion(user.id) });
       await setDoc(doc(db, "children", invite.childId, "inviteLog", user.id), {
         joinedAt: serverTimestamp(),
         code,
       });
       setStatus("joined");
       setTimeout(() => router.replace("/"), 2000);
-    } catch {
-      setStatus("valid");
+    } catch (err) {
+      console.error("[invite] join failed:", err);
+      setStatus("error");
     }
   };
 
@@ -120,6 +113,21 @@ function InviteView() {
         <Link href="/" className="mt-6 inline-flex w-full items-center justify-center rounded-[14px] border border-line bg-card py-3 text-[13px] font-medium text-ink">
           홈으로 돌아가기
         </Link>
+      </Wrapper>
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <Wrapper>
+        <div className="text-center text-3xl mb-3">⚠️</div>
+        <div className="font-serif text-[20px] font-medium text-ink text-center">참여에 실패했어요</div>
+        <p className="mt-2 text-[13px] text-ink-mute text-center leading-[1.6]">
+          초대 링크가 만료됐거나 서버 오류가 발생했어요.<br />초대한 분에게 새 링크를 요청해주세요.
+        </p>
+        <button onClick={() => setStatus("valid")} className="mt-5 w-full rounded-[14px] border border-line bg-card py-3 text-[13px] font-medium text-ink">
+          다시 시도
+        </button>
       </Wrapper>
     );
   }
