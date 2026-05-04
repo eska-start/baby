@@ -9,6 +9,25 @@ import { useRecords } from "@/app/providers";
 import { useAuth } from "@/app/auth-provider";
 import { bmi, bmiCategoryKorean, calcAgeMonths, calcAgeLabel, diff, shortDate, smartDate } from "@/lib/data";
 
+const BMI_ADVICE: Record<string, { title: string; body: string }> = {
+  저체중: {
+    title: "조금 더 먹어볼까요?",
+    body: "고단백 식품과 균형 잡힌 식사로 건강한 체중을 만들어 줄 수 있어요. 소아과 상담도 함께 받아보세요.",
+  },
+  "정상 범위": {
+    title: "잘 크고 있어요!",
+    body: "지금 이 상태를 유지하는 게 제일 좋아요. 규칙적인 식사와 야외 활동을 꾸준히 해주세요.",
+  },
+  과체중: {
+    title: "식단을 조금 살펴볼게요.",
+    body: "단 음료와 간식을 줄이고 활동량을 늘려보세요. 아직 충분히 조절할 수 있는 구간이에요.",
+  },
+  비만: {
+    title: "체중 관리가 필요해요.",
+    body: "소아과 또는 소아 영양 전문가와 상담을 권장해요. 식습관 개선과 규칙적인 신체 활동이 중요해요.",
+  },
+};
+
 export default function HomePage() {
   const { user } = useAuth();
   const { activeChild, records, vaccines } = useRecords();
@@ -30,8 +49,10 @@ export default function HomePage() {
     monthAgo && last && monthAgo.date !== last.date
       ? last.height - monthAgo.height
       : null;
-  const bmiAge = activeChild ? calcAgeMonths(activeChild.birth) : 0;
-  const cat = bmiVal ? bmiCategoryKorean(bmiVal, bmiAge, activeChild?.gender ?? "남") : null;
+  const bmiAge = activeChild?.birth ? calcAgeMonths(activeChild.birth) : 0;
+  const cat = bmiVal && activeChild
+    ? bmiCategoryKorean(bmiVal, bmiAge, activeChild.gender ?? "남")
+    : null;
   const upcoming = vaccines
     .filter((v) => v.status === "upcoming")
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
@@ -113,7 +134,7 @@ export default function HomePage() {
           <>
             {/* Top grid */}
             <section className="grid gap-3 md:grid-cols-12 md:gap-4">
-              {/* BMI big card */}
+              {/* BMI card */}
               <div className="md:col-span-7 rounded-[22px] border border-line bg-card px-6 py-6 md:px-7 md:py-7">
                 <div className="flex items-start justify-between">
                   <div>
@@ -129,16 +150,26 @@ export default function HomePage() {
                   </span>
                 </div>
 
-                <div className="mt-5 flex items-baseline gap-1.5">
-                  <span className="ko-num font-serif text-[64px] font-medium leading-none tracking-tight text-ink md:text-[72px]">
-                    {bmiVal.toFixed(1)}
-                  </span>
-                  <span className="text-[16px] text-ink-mute">BMI</span>
+                <div className="mt-4 flex items-end gap-4">
+                  <div>
+                    <div className="text-[10px] tracking-[0.4px] text-ink-mute mb-0.5">BMI</div>
+                    <div className="ko-num font-serif text-[38px] font-medium leading-none tracking-tight text-ink">
+                      {bmiVal.toFixed(1)}
+                    </div>
+                  </div>
+                  <div className="mb-1 flex-1">
+                    <BmiGauge value={bmiVal} />
+                  </div>
                 </div>
-                <div className="mt-1 text-[12px] text-ink-mute">
-                  {activeChild.name}의 최근 측정 기준이에요.
+
+                <div className="mt-4 rounded-[14px] px-4 py-3.5" style={{ background: cat.bg }}>
+                  <div className="text-[13px] font-semibold leading-snug" style={{ color: cat.color }}>
+                    {BMI_ADVICE[cat.label]?.title}
+                  </div>
+                  <div className="mt-1 text-[12px] leading-[1.6]" style={{ color: cat.color, opacity: 0.8 }}>
+                    {BMI_ADVICE[cat.label]?.body}
+                  </div>
                 </div>
-                <BmiGauge value={bmiVal} />
               </div>
 
               {/* Quick stats */}
