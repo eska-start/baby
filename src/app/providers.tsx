@@ -3,13 +3,14 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import {
   collection,
+  deleteDoc,
+  deleteField,
   doc,
   onSnapshot,
   orderBy,
   query,
   serverTimestamp,
   setDoc,
-  deleteDoc,
   where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -21,6 +22,7 @@ export type ChildProfile = {
   name: string;
   birth: string;
   gender: "여" | "남";
+  deletedAt?: string; // ISO string — set on soft-delete, absent when active
 };
 
 type Ctx = {
@@ -28,36 +30,29 @@ type Ctx = {
   addRecord: (r: GrowthRecord) => void;
   deleteRecord: (date: string) => void;
   updateRecord: (date: string, updated: GrowthRecord) => void;
-
   children: ChildProfile[];
+  deletedChildren: ChildProfile[];
   activeChild: ChildProfile | null;
   setActiveChild: (id: string) => void;
-  addChild: (profile: Omit<ChildProfile, "id">) => void;
-  updateChild: (id: string, updates: Omit<ChildProfile, "id">) => void;
+  addChild: (profile: Omit<ChildProfile, "id" | "deletedAt">) => void;
+  updateChild: (id: string, updates: Omit<ChildProfile, "id" | "deletedAt">) => void;
   deleteChild: (id: string) => void;
-
+  restoreChild: (id: string) => void;
   vaccines: Vaccine[];
   completeVaccine: (name: string, round?: string) => void;
   postponeVaccine: (name: string, round: string | undefined, days: number) => void;
 };
 
 const AppCtx = createContext<Ctx>({
-  records: [],
-  addRecord: () => {},
-  deleteRecord: () => {},
-  updateRecord: () => {},
-  children: [],
-  activeChild: null,
-  setActiveChild: () => {},
-  addChild: () => {},
-  updateChild: () => {},
-  deleteChild: () => {},
-  vaccines: [],
-  completeVaccine: () => {},
-  postponeVaccine: () => {},
+  records: [], addRecord: () => {}, deleteRecord: () => {}, updateRecord: () => {},
+  children: [], deletedChildren: [], activeChild: null,
+  setActiveChild: () => {}, addChild: () => {}, updateChild: () => {},
+  deleteChild: () => {}, restoreChild: () => {},
+  vaccines: [], completeVaccine: () => {}, postponeVaccine: () => {},
 });
 
 const ACTIVE_KEY = "ai-gyeol-active";
+const SOFT_DELETE_MS = 30 * 24 * 60 * 60 * 1000; // 30일
 
 function shiftDate(s: string, days: number): string {
   const d = new Date(s);
@@ -66,215 +61,240 @@ function shiftDate(s: string, days: number): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
+function mapChild(id: string, data: Record<string, unknown>): ChildProfile {
+  return {
+    id,
+    name: data.name as string,
+    birth: data.birth as string,
+    gender: data.gender as "여" | "남",
+    deletedAt: data.deletedAt as string | undefined,
+  };
+}
+
+function mergeChildren(a: ChildProfile[], b: ChildProfile[]) {
+  const map = new Map<string, ChildProfile>();
+  [...a, ...b].forEach((child) => map.set(child.id, child));
+  return [...map.values()];
+}
+
 export function RecordsProvider({ children: rc }: { children: React.ReactNode }) {
   const { user } = useAuth();
+  const userId = user?.id ?? null;
+
   const [list, setList] = useState<ChildProfile[]>([]);
+  const [deletedList, setDeletedList] = useState<ChildProfile[]>([]);
   const [activeId, setActiveIdState] = useState<string | null>(null);
   const [records, setRecords] = useState<GrowthRecord[]>([]);
   const [vaccines, setVaccines] = useState<Vaccine[]>([]);
+  const [dbError, setDbError] = useState<string | null>(null);
 
-  // Subscribe to children collection for this user
+  const showError = (msg: string) => { setDbError(msg); setTimeout(() => setDbError(null), 4000); };
+
   useEffect(() => {
-    if (!user) {
-      setList([]);
-      setRecords([]);
-      setVaccines([]);
-      setActiveIdState(null);
-      return;
-    }
+    if (!userId) { setList([]); setDeletedList([]); setRecords([]); setVaccines([]); setActiveIdState(null); return; }
 
-    const q = query(collection(db, "children"), where("userId", "==", user.id));
-    const unsub = onSnapshot(q, (snap) => {
-      const children: ChildProfile[] = snap.docs.map((d) => ({
-        id: d.id,
-        name: d.data().name as string,
-        birth: d.data().birth as string,
-        gender: d.data().gender as "여" | "남",
-      }));
-      setList(children);
+    let memberChildren: ChildProfile[] = [];
+    let legacyChildren: ChildProfile[] = [];
 
+    const apply = () => {
+      const all = mergeChildren(memberChildren, legacyChildren);
+      const now = Date.now();
+
+      const active = all.filter((c) => !c.deletedAt);
+      const softDeleted = all.filter((c) => !!c.deletedAt);
+      const recentlyDeleted = softDeleted.filter((c) => now - new Date(c.deletedAt!).getTime() < SOFT_DELETE_MS);
+
+      // 30일 지난 항목 영구 삭제 (best-effort)
+      softDeleted
+        .filter((c) => now - new Date(c.deletedAt!).getTime() >= SOFT_DELETE_MS)
+        .forEach((c) => deleteDoc(doc(db, "children", c.id)).catch(() => {}));
+
+      setList(active);
+      setDeletedList(recentlyDeleted);
       setActiveIdState((cur) => {
-        if (cur && children.find((c) => c.id === cur)) return cur;
+        if (cur && active.find((c) => c.id === cur)) return cur;
         const saved = localStorage.getItem(ACTIVE_KEY);
-        if (saved && children.find((c) => c.id === saved)) return saved;
-        return children[0]?.id ?? null;
+        if (saved && active.find((c) => c.id === saved)) return saved;
+        return active[0]?.id ?? null;
       });
-    });
+    };
 
-    return () => unsub();
-  }, [user]);
+    const memberQuery = query(collection(db, "children"), where("memberIds", "array-contains", userId));
+    const legacyQuery = query(collection(db, "children"), where("userId", "==", userId));
 
-  // Subscribe to records for active child
-  useEffect(() => {
-    if (!activeId) {
-      setRecords([]);
-      return;
-    }
-
-    const q = query(
-      collection(db, "children", activeId, "records"),
-      orderBy("date", "asc"),
+    const unsubMember = onSnapshot(
+      memberQuery,
+      (snap) => { memberChildren = snap.docs.map((d) => mapChild(d.id, d.data())); apply(); },
+      (err) => console.error("[Firestore] children(member) read failed:", err)
     );
-    const unsub = onSnapshot(q, (snap) => {
-      setRecords(
-        snap.docs.map((d) => ({
-          date: d.data().date as string,
-          height: d.data().height as number,
-          weight: d.data().weight as number,
-          note: d.data().note as string | undefined,
-        })),
-      );
-    });
 
+    const unsubLegacy = onSnapshot(
+      legacyQuery,
+      (snap) => {
+        legacyChildren = snap.docs.map((d) => {
+          const data = d.data();
+          const memberIds = Array.isArray(data.memberIds) ? data.memberIds : [];
+          if (!memberIds.includes(userId)) {
+            void setDoc(doc(db, "children", d.id), { ownerId: data.ownerId ?? userId, memberIds: [userId] }, { merge: true });
+          }
+          return mapChild(d.id, data);
+        });
+        apply();
+      },
+      (err) => console.error("[Firestore] children(legacy) read failed:", err)
+    );
+
+    return () => { unsubMember(); unsubLegacy(); };
+  }, [userId]);
+
+  useEffect(() => {
+    if (!activeId) { setRecords([]); return; }
+    const q = query(collection(db, "children", activeId, "records"), orderBy("date", "asc"));
+    const unsub = onSnapshot(
+      q,
+      (snap) => { setRecords(snap.docs.map((d) => ({ date: d.data().date as string, height: d.data().height as number, weight: d.data().weight as number, note: d.data().note as string | undefined }))); },
+      (err) => {
+        console.error("[Firestore] records read failed:", err);
+        showError("기록을 불러오지 못했어요. Firestore 규칙을 확인해주세요.");
+      }
+    );
     return () => unsub();
   }, [activeId]);
 
-  // Subscribe to vaccines for active child
   useEffect(() => {
-    if (!activeId) {
-      setVaccines([]);
-      return;
-    }
-
-    const unsub = onSnapshot(doc(db, "children", activeId, "meta", "vaccines"), (snap) => {
-      if (snap.exists()) {
-        setVaccines(snap.data().list as Vaccine[]);
-      } else {
-        setVaccines(VACCINES);
-      }
-    });
-
+    if (!activeId) { setVaccines([]); return; }
+    const unsub = onSnapshot(
+      doc(db, "children", activeId, "meta", "vaccines"),
+      (snap) => { setVaccines(snap.exists() ? (snap.data().list as Vaccine[]) : VACCINES); },
+      (err) => console.error("[Firestore] vaccines read failed:", err)
+    );
     return () => unsub();
   }, [activeId]);
 
   const activeChild = (activeId ? list.find((c) => c.id === activeId) : null) ?? list[0] ?? null;
 
-  const setActiveChild = (id: string) => {
-    setActiveIdState(id);
-    localStorage.setItem(ACTIVE_KEY, id);
-  };
+  const setActiveChild = (id: string) => { setActiveIdState(id); localStorage.setItem(ACTIVE_KEY, id); };
 
   const addRecord = (r: GrowthRecord) => {
     if (!activeId) return;
-    setRecords((prev) =>
-      [...prev.filter((x) => x.date !== r.date), r].sort((a, b) =>
-        a.date.localeCompare(b.date),
-      ),
-    );
-    void setDoc(doc(db, "children", activeId, "records", r.date), {
-      date: r.date,
-      height: r.height,
-      weight: r.weight,
-      note: r.note ?? null,
-      createdAt: serverTimestamp(),
+    const prev = records;
+    setRecords((cur) => [...cur.filter((x) => x.date !== r.date), r].sort((a, b) => a.date.localeCompare(b.date)));
+    setDoc(doc(db, "children", activeId, "records", r.date), {
+      date: r.date, height: r.height, weight: r.weight, note: r.note ?? null, createdAt: serverTimestamp(),
+    }).catch((err) => {
+      console.error("[Firestore] addRecord failed:", err);
+      showError("저장 실패: Firestore 규칙을 확인해주세요.");
+      setRecords(prev);
     });
   };
 
   const deleteRecord = (date: string) => {
     if (!activeId) return;
-    setRecords((prev) => prev.filter((r) => r.date !== date));
-    void deleteDoc(doc(db, "children", activeId, "records", date));
+    const prev = records;
+    setRecords((cur) => cur.filter((r) => r.date !== date));
+    deleteDoc(doc(db, "children", activeId, "records", date)).catch((err) => {
+      console.error("[Firestore] deleteRecord failed:", err);
+      showError("삭제 실패: Firestore 규칙을 확인해주세요.");
+      setRecords(prev);
+    });
   };
 
   const updateRecord = (date: string, updated: GrowthRecord) => {
     if (!activeId) return;
-    setRecords((prev) =>
-      [...prev.filter((r) => r.date !== date && r.date !== updated.date), updated].sort((a, b) =>
-        a.date.localeCompare(b.date),
-      ),
-    );
-    if (date !== updated.date) {
-      void deleteDoc(doc(db, "children", activeId, "records", date));
-    }
-    void setDoc(doc(db, "children", activeId, "records", updated.date), {
-      date: updated.date,
-      height: updated.height,
-      weight: updated.weight,
-      note: updated.note ?? null,
-      createdAt: serverTimestamp(),
+    const prev = records;
+    setRecords((cur) => [...cur.filter((r) => r.date !== date && r.date !== updated.date), updated].sort((a, b) => a.date.localeCompare(b.date)));
+    const writes: Promise<unknown>[] = [
+      setDoc(doc(db, "children", activeId, "records", updated.date), {
+        date: updated.date, height: updated.height, weight: updated.weight, note: updated.note ?? null, createdAt: serverTimestamp(),
+      }),
+    ];
+    if (date !== updated.date) writes.push(deleteDoc(doc(db, "children", activeId, "records", date)));
+    Promise.all(writes).catch((err) => {
+      console.error("[Firestore] updateRecord failed:", err);
+      showError("저장 실패: Firestore 규칙을 확인해주세요.");
+      setRecords(prev);
     });
   };
 
-  const addChild = (profile: Omit<ChildProfile, "id">) => {
-    if (!user) return;
+  const addChild = (profile: Omit<ChildProfile, "id" | "deletedAt">) => {
+    if (!userId) return;
     const ref = doc(collection(db, "children"));
     const newChild: ChildProfile = { id: ref.id, ...profile };
-    setList((prev) => [...prev, newChild]);
-    if (!activeId) {
-      setActiveIdState(ref.id);
-      localStorage.setItem(ACTIVE_KEY, ref.id);
-    }
-    void setDoc(ref, {
-      userId: user.id,
-      name: profile.name,
-      birth: profile.birth,
-      gender: profile.gender,
-      createdAt: serverTimestamp(),
+    const prev = list;
+    setList((cur) => [...cur, newChild]);
+    if (!activeId) { setActiveIdState(ref.id); localStorage.setItem(ACTIVE_KEY, ref.id); }
+    Promise.all([
+      setDoc(ref, { userId, ownerId: userId, memberIds: [userId], name: profile.name, birth: profile.birth, gender: profile.gender, createdAt: serverTimestamp() }),
+      setDoc(doc(db, "children", ref.id, "meta", "vaccines"), { list: VACCINES }),
+    ]).catch((err) => {
+      console.error("[Firestore] addChild failed:", err);
+      showError("아이 등록 실패: Firestore 규칙을 확인해주세요.");
+      setList(prev);
     });
-    void setDoc(doc(db, "children", ref.id, "meta", "vaccines"), { list: VACCINES });
   };
 
-  const updateChild = (id: string, updates: Omit<ChildProfile, "id">) => {
-    setList((prev) => prev.map((c) => (c.id === id ? { ...c, ...updates } : c)));
-    void setDoc(
-      doc(db, "children", id),
-      { name: updates.name, birth: updates.birth, gender: updates.gender },
-      { merge: true },
-    );
+  const updateChild = (id: string, updates: Omit<ChildProfile, "id" | "deletedAt">) => {
+    const prev = list;
+    setList((cur) => cur.map((c) => (c.id === id ? { ...c, ...updates } : c)));
+    setDoc(doc(db, "children", id), { name: updates.name, birth: updates.birth, gender: updates.gender }, { merge: true }).catch((err) => {
+      console.error("[Firestore] updateChild failed:", err);
+      setList(prev);
+    });
   };
 
+  // 소프트 딜리트: deletedAt 설정, 30일 후 영구 삭제
   const deleteChild = (id: string) => {
     if (list.length <= 1) return;
+    const child = list.find((c) => c.id === id);
+    if (!child) return;
+    const deletedAt = new Date().toISOString();
     const next = list.filter((c) => c.id !== id);
     setList(next);
-    if (activeId === id && next.length > 0) {
-      setActiveIdState(next[0].id);
-      localStorage.setItem(ACTIVE_KEY, next[0].id);
-    }
-    void deleteDoc(doc(db, "children", id));
+    setDeletedList((dl) => [...dl, { ...child, deletedAt }]);
+    if (activeId === id && next.length > 0) { setActiveIdState(next[0].id); localStorage.setItem(ACTIVE_KEY, next[0].id); }
+    setDoc(doc(db, "children", id), { deletedAt }, { merge: true }).catch((err) => {
+      console.error("[Firestore] deleteChild failed:", err);
+      setList((cur) => [...cur, child]);
+      setDeletedList((dl) => dl.filter((c) => c.id !== id));
+    });
+  };
+
+  // 복구: deletedAt 필드 제거
+  const restoreChild = (id: string) => {
+    const child = deletedList.find((c) => c.id === id);
+    if (!child) return;
+    setDeletedList((dl) => dl.filter((c) => c.id !== id));
+    setList((cur) => [...cur, { ...child, deletedAt: undefined }]);
+    setDoc(doc(db, "children", id), { deletedAt: deleteField() }, { merge: true }).catch((err) => {
+      console.error("[Firestore] restoreChild failed:", err);
+      setList((cur) => cur.filter((c) => c.id !== id));
+      setDeletedList((dl) => [...dl, child]);
+    });
   };
 
   const saveVaccines = (vacs: Vaccine[]) => {
     if (!activeId) return;
-    void setDoc(doc(db, "children", activeId, "meta", "vaccines"), { list: vacs });
+    setDoc(doc(db, "children", activeId, "meta", "vaccines"), { list: vacs }).catch((err) => {
+      console.error("[Firestore] saveVaccines failed:", err);
+    });
   };
-
-  const completeVaccine = (name: string, round?: string) => {
-    const updated = vaccines.map((v) =>
-      v.name === name && v.round === round ? { ...v, status: "done" as const } : v,
-    );
-    setVaccines(updated);
-    saveVaccines(updated);
-  };
-
-  const postponeVaccine = (name: string, round: string | undefined, days: number) => {
-    const updated = vaccines.map((v) =>
-      v.name === name && v.round === round ? { ...v, dueDate: shiftDate(v.dueDate, days) } : v,
-    );
-    setVaccines(updated);
-    saveVaccines(updated);
-  };
+  const completeVaccine = (name: string, round?: string) => { const updated = vaccines.map((v) => v.name === name && v.round === round ? { ...v, status: "done" as const } : v); setVaccines(updated); saveVaccines(updated); };
+  const postponeVaccine = (name: string, round: string | undefined, days: number) => { const updated = vaccines.map((v) => v.name === name && v.round === round ? { ...v, dueDate: shiftDate(v.dueDate, days) } : v); setVaccines(updated); saveVaccines(updated); };
 
   return (
-    <AppCtx.Provider
-      value={{
-        records,
-        addRecord,
-        deleteRecord,
-        updateRecord,
-        children: list,
-        activeChild,
-        setActiveChild,
-        addChild,
-        updateChild,
-        deleteChild,
-        vaccines,
-        completeVaccine,
-        postponeVaccine,
-      }}
-    >
-      {rc}
-    </AppCtx.Provider>
+    <>
+      {dbError && (
+        <div className="fixed bottom-20 left-1/2 z-[100] -translate-x-1/2 whitespace-nowrap rounded-[12px] bg-red-500 px-5 py-3 text-[13px] font-medium text-white shadow-lg">
+          {dbError}
+        </div>
+      )}
+      <AppCtx.Provider value={{
+        records, addRecord, deleteRecord, updateRecord,
+        children: list, deletedChildren: deletedList, activeChild,
+        setActiveChild, addChild, updateChild, deleteChild, restoreChild,
+        vaccines, completeVaccine, postponeVaccine,
+      }}>{rc}</AppCtx.Provider>
+    </>
   );
 }
 

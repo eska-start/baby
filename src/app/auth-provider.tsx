@@ -3,19 +3,26 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import {
   User,
+  createUserWithEmailAndPassword,
   onAuthStateChanged,
+  signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
+  updateProfile,
 } from "firebase/auth";
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { auth, db, provider } from "@/lib/firebase";
 
 export type AuthUser = { id: string; email: string; name: string };
 
+type AuthResult = { ok: boolean; error?: string };
+
 type AuthCtx = {
   user: AuthUser | null;
   isLoading: boolean;
-  loginWithGoogle: () => Promise<{ ok: boolean; error?: string }>;
+  loginWithGoogle: () => Promise<AuthResult>;
+  loginWithEmail: (email: string, password: string) => Promise<AuthResult>;
+  signupWithEmail: (email: string, password: string, name?: string) => Promise<AuthResult>;
   logout: () => Promise<void>;
 };
 
@@ -23,6 +30,8 @@ const Ctx = createContext<AuthCtx>({
   user: null,
   isLoading: true,
   loginWithGoogle: async () => ({ ok: false }),
+  loginWithEmail: async () => ({ ok: false }),
+  signupWithEmail: async () => ({ ok: false }),
   logout: async () => {},
 });
 
@@ -89,12 +98,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const loginWithEmail = async (email: string, password: string) => {
+    try {
+      const result = await signInWithEmailAndPassword(auth, email, password);
+      const mapped = mapFirebaseUser(result.user);
+      await upsertUser(mapped);
+      setUser(mapped);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: (e as Error).message };
+    }
+  };
+
+  const signupWithEmail = async (email: string, password: string, name?: string) => {
+    try {
+      const result = await createUserWithEmailAndPassword(auth, email, password);
+      if (name?.trim()) await updateProfile(result.user, { displayName: name.trim() });
+      const mapped: AuthUser = {
+        id: result.user.uid,
+        email: result.user.email ?? email,
+        name: name?.trim() || result.user.displayName || "보호자",
+      };
+      await upsertUser(mapped);
+      setUser(mapped);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: (e as Error).message };
+    }
+  };
+
   const logout = async () => {
     await signOut(auth);
     setUser(null);
   };
 
-  return <Ctx.Provider value={{ user, isLoading, loginWithGoogle, logout }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ user, isLoading, loginWithGoogle, loginWithEmail, signupWithEmail, logout }}>{children}</Ctx.Provider>;
 }
 
 export const useAuth = () => useContext(Ctx);

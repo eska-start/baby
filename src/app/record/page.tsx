@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { BottomNav, MobileTopBar, PageWrap, TopBar } from "@/components/AppShell";
 import { Icon } from "@/components/Icon";
-import { bmi, bmiCategory, diff, formatDate } from "@/lib/data";
+import { bmi, bmiCategoryKorean, calcAgeMonths, diff, formatDate } from "@/lib/data";
 import { useRecords } from "@/app/providers";
 
 function RecordForm() {
@@ -29,7 +29,8 @@ function RecordForm() {
   const heightNum = parseFloat(height) || 0;
   const weightNum = parseFloat(weight) || 0;
   const bmiVal = heightNum > 0 && weightNum > 0 ? bmi(heightNum, weightNum) : 0;
-  const cat = bmiVal > 0 ? bmiCategory(bmiVal) : null;
+  const bmiAge = activeChild ? calcAgeMonths(activeChild.birth) : 0;
+  const cat = bmiVal > 0 ? bmiCategoryKorean(bmiVal, bmiAge, activeChild?.gender ?? "남") : null;
   const dh = last && heightNum ? diff(heightNum, last.height) : "";
   const dw = last && weightNum ? diff(weightNum, last.weight) : "";
 

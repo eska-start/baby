@@ -1,16 +1,18 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "./auth-provider";
 import { RecordsProvider } from "./providers";
+import { SplashScreen } from "@/components/SplashScreen";
 
-const PUBLIC = ["/login", "/signup", "/share"];
+const PUBLIC = ["/login", "/signup", "/share", "/invite"];
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
+  const [showSplash, setShowSplash] = useState(true);
   const isPublic = PUBLIC.some((p) => pathname === p || pathname.startsWith(p + "/") || pathname.startsWith(p + "?"));
 
   useEffect(() => {
@@ -18,6 +20,10 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
       router.replace("/login");
     }
   }, [user, isLoading, isPublic, router]);
+
+  if (showSplash) {
+    return <SplashScreen onDone={() => setShowSplash(false)} />;
+  }
 
   if (isLoading) {
     return (

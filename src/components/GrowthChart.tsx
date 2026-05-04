@@ -25,6 +25,7 @@ export function GrowthChart({ metric = "height", height = 280, showAxis = true, 
   const padB = 22;
   const innerW = w - padL - padR;
   const innerH = h - padT - padB;
+  if (data.length < 2) return null;
   const xStep = innerW / (data.length - 1);
   const yFor = (v: number) => padT + innerH * (1 - (v - minV) / (maxV - minV));
   const xFor = (i: number) => padL + i * xStep;
@@ -105,7 +106,7 @@ export function GrowthChart({ metric = "height", height = 280, showAxis = true, 
           </g>
         );
       })}
-      <g transform={`translate(${lastX - 38}, ${Math.max(8, lastY - 30)})`}>
+      <g transform={`translate(${Math.min(lastX - 38, w - padR - 80)}, ${Math.max(8, lastY - 30)})`}>
         <rect width="76" height="22" rx="11" fill="#1F1A14" />
         <text
           x="38"

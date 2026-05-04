@@ -11,16 +11,12 @@ const config: FirebaseOptions = {
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
 };
 
-const missing = Object.entries(config)
-  .filter(([, value]) => !value)
-  .map(([key]) => key);
+// Only initialize when all env vars are present (skipped during SSR/build)
+const hasConfig = Object.values(config).every(Boolean);
+const app = hasConfig ? (getApps().length ? getApp() : initializeApp(config)) : null;
 
-if (missing.length) {
-  throw new Error(`Firebase env 누락: ${missing.join(", ")}. .env.local 또는 배포 환경변수를 확인하세요.`);
-}
-
-const app = getApps().length ? getApp() : initializeApp(config);
-
-export const auth = getAuth(app);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const auth = app ? getAuth(app) : (null as any);
 export const provider = new GoogleAuthProvider();
-export const db = getFirestore(app);
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const db = app ? getFirestore(app) : (null as any);
